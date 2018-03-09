@@ -1,10 +1,13 @@
 import spacy
+import corenlp
 
 from collections import defaultdict
 from spacy.lang.en import English
 from nested_lookup import nested_lookup
 
+core_client = corenlp.client.CoreNLPClient(annotators="tokenize ssplit".split())
 nlp = spacy.load('en')
+spacy_tokenizer = English().Defaults.create_tokenizer(nlp)
 
 
 def token_idx_map(context, context_tokens):
@@ -41,3 +44,19 @@ def build_vocab_from_json_searches(data, search_keys):
         word2id[word] = i
 
     return word2id
+
+
+def tokenize(text, tokenizer):
+    if tokenizer == 'stanford':
+        annotation = core_client.annotate(text)
+        tokens = [token.word for sentence in annotation.sentence for token in sentence.token]
+    elif tokenizer == 'spacy':
+        tokens = [word.text for word in spacy_tokenizer(text)]
+    return tokens
+
+
+def fix_quotes(text):
+    ans = text.replace("''", '" ')
+    ans = ans.replace("``", '" ')
+    return ans
+

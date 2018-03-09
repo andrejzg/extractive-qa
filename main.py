@@ -1,14 +1,9 @@
 import json
-import spacy
 import data_ops
 import evaluate
 
 from tqdm import tqdm
 from collections import defaultdict
-from spacy.lang.en import English
-
-nlp = spacy.load('en')
-tokenizer = English().Defaults.create_tokenizer(nlp)
 
 train_raw = json.load(open('data/train-v1.1.json'))
 dev_raw = json.load(open('data/dev-v1.1.json'))
@@ -29,10 +24,9 @@ for example in tqdm(train_raw['data']):
     for paragraph in example['paragraphs']:
 
         context = paragraph['context']
-        context = context.replace("''", '" ')
-        context = context.replace("``", '" ')
+        context = data_ops.fix_quotes(context)
 
-        context_tokens = [x.text for x in nlp(context)]
+        context_tokens = data_ops.tokenize(context, tokenizer='spacy')
         context_numeric = [word2id[x] for x in context_tokens]
 
         answer_map = data_ops.token_idx_map(context, context_tokens)
@@ -40,18 +34,16 @@ for example in tqdm(train_raw['data']):
         for qa in paragraph['qas']:
             # Extract question
             question = qa['question']
-            question = question.replace("''", '" ')
-            question = question.replace("``", '" ')
+            question = data_ops.fix_quotes(question)
 
-            question_tokens = [word.text for word in tokenizer(question)]
+            question_tokens = data_ops.tokenize(question, tokenizer='spacy')
             question_numeric = [word2id[word] for word in question_tokens]
 
             # Extract answer
             answer = qa['answers'][0]['text']
-            answer = answer.replace("''", '" ')
-            answer = answer.replace("``", '" ')
+            answer = data_ops.fix_quotes(answer)
 
-            answer_tokens = [word.text for word in tokenizer(answer)]
+            answer_tokens = data_ops.tokenize(answer, tokenizer='spacy')
             answer_numeric = [word2id[word] for word in answer_tokens]
 
             answer_start = qa['answers'][0]['answer_start']
@@ -69,10 +61,7 @@ for example in tqdm(train_raw['data']):
                 extracted_clean = evaluate.normalize_answer(extracted_answer)
                 actual_clean = evaluate.normalize_answer(answer)
 
-                # assert extracted_clean == actual_clean, f'{extracted_clean} =/= {actual_clean}'
-                if actual_clean != extracted_clean:
-                    import code
-                    code.interact(local=locals())
+                assert extracted_clean == actual_clean, f'{extracted_clean} =/= {actual_clean}'
             except:
                 skipped += 1
                 continue
