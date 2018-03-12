@@ -1,26 +1,35 @@
 import spacy
-import corenlp
+import nltk
 
 from collections import defaultdict
 from spacy.lang.en import English
 from nested_lookup import nested_lookup
+from nltk.parse.corenlp import CoreNLPParser
 
-core_client = corenlp.client.CoreNLPClient(annotators="tokenize ssplit".split())
 nlp = spacy.load('en')
 spacy_tokenizer = English().Defaults.create_tokenizer(nlp)
+stanford_tokenizer = CoreNLPParser()
 
 
-def token_idx_map(context, context_tokens):
+def fix_apostrophe(text, start, end):
+    ans = text[:start] + text[start:end].replace("'", '') + text[end:]
+    return ans
+
+
+
+def token_idx_map(text, tokens):
     """
-    Add description
+    Given a string of text and a list of its tokens produce a dict where the keys are the character start
+    positions of the tokens and the values are [token, index] where index denotes the position of the token
+    in the text.
     """
     seen = ''
     current_token_idx = 0
     token_map = dict()
-    for char_idx, char in enumerate(context):
+    for char_idx, char in enumerate(text):
         if char != u' ':
             seen += char
-            context_token = context_tokens[current_token_idx]
+            context_token = tokens[current_token_idx]
             if seen == context_token:
                 syn_start = char_idx - len(seen) + 1
                 token_map[syn_start] = [seen, current_token_idx]
@@ -47,11 +56,14 @@ def build_vocab_from_json_searches(data, search_keys):
 
 
 def tokenize(text, tokenizer):
-    if tokenizer == 'stanford':
-        annotation = core_client.annotate(text)
-        tokens = [token.word for sentence in annotation.sentence for token in sentence.token]
+    if tokenizer == 'nltk':
+        tokens = nltk.word_tokenize(text)
     elif tokenizer == 'spacy':
         tokens = [word.text for word in spacy_tokenizer(text)]
+    elif tokenizer == 'stanford':
+        tokens = list(stanford_tokenizer.tokenize(text))
+    else:
+        raise ValueError('Tokenizer must be one of the following: nltk|spacy|stanford')
     return tokens
 
 

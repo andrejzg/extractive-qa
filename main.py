@@ -26,7 +26,7 @@ for example in tqdm(train_raw['data']):
         context = paragraph['context']
         context = data_ops.fix_quotes(context)
 
-        context_tokens = data_ops.tokenize(context, tokenizer='spacy')
+        context_tokens = data_ops.tokenize(context, tokenizer='stanford')
         context_numeric = [word2id[x] for x in context_tokens]
 
         answer_map = data_ops.token_idx_map(context, context_tokens)
@@ -36,14 +36,14 @@ for example in tqdm(train_raw['data']):
             question = qa['question']
             question = data_ops.fix_quotes(question)
 
-            question_tokens = data_ops.tokenize(question, tokenizer='spacy')
+            question_tokens = data_ops.tokenize(question, tokenizer='stanford')
             question_numeric = [word2id[word] for word in question_tokens]
 
             # Extract answer
             answer = qa['answers'][0]['text']
             answer = data_ops.fix_quotes(answer)
 
-            answer_tokens = data_ops.tokenize(answer, tokenizer='spacy')
+            answer_tokens = data_ops.tokenize(answer, tokenizer='stanford')
             answer_numeric = [word2id[word] for word in answer_tokens]
 
             answer_start = qa['answers'][0]['answer_start']
@@ -62,7 +62,9 @@ for example in tqdm(train_raw['data']):
                 actual_clean = evaluate.normalize_answer(answer)
 
                 assert extracted_clean == actual_clean, f'{extracted_clean} =/= {actual_clean}'
-            except:
+            except AssertionError:
+                import code
+                code.interact(local=locals())
                 skipped += 1
                 continue
 
