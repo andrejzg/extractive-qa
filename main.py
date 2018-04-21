@@ -1,9 +1,10 @@
 import json
 import data_ops
-import evaluate
+import logging
 
-from tqdm import tqdm
 from collections import defaultdict
+
+logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
 
 train_raw = json.load(open('data/train-v1.1.json'))
 dev_raw = json.load(open('data/dev-v1.1.json'))
@@ -16,67 +17,15 @@ except FileNotFoundError:
                                                       search_keys=['context', 'question'])
     json.dump(word2id, open('data/word2id.json', 'w'))
 
-skipped = 0
 
-for example in tqdm(train_raw['data']):
-    title = example['title']
-
-    for paragraph in example['paragraphs']:
-
-        context = paragraph['context']
-        context = data_ops.fix_quotes(context)
-
-        context_tokens = data_ops.tokenize(context, tokenizer='stanford')
-        context_numeric = [word2id[x] for x in context_tokens]
-
-        answer_map = data_ops.token_idx_map(context, context_tokens)
-
-        for qa in paragraph['qas']:
-            # Extract question
-            question = qa['question']
-            question = data_ops.fix_quotes(question)
-
-            question_tokens = data_ops.tokenize(question, tokenizer='stanford')
-            question_numeric = [word2id[word] for word in question_tokens]
-
-            # Extract answer
-            answer = qa['answers'][0]['text']
-            answer = data_ops.fix_quotes(answer)
-
-            answer_tokens = data_ops.tokenize(answer, tokenizer='stanford')
-            answer_numeric = [word2id[word] for word in answer_tokens]
-
-            answer_start = qa['answers'][0]['answer_start']
-            answer_end = answer_start + len(answer)
-
-            try:
-                last_word_answer = len(answer_tokens[-1])  # add one to get the first char
-
-                _, start_answer_word_index = answer_map[answer_start]
-                _, end_answer_word_index = answer_map[answer_end - last_word_answer]
-
-                extracted_answer = context_tokens[start_answer_word_index:end_answer_word_index + 1]
-                extracted_answer = ' '.join(extracted_answer)
-
-                extracted_clean = evaluate.normalize_answer(extracted_answer)
-                actual_clean = evaluate.normalize_answer(answer)
-
-                assert extracted_clean == actual_clean, f'{extracted_clean} =/= {actual_clean}'
-            except AssertionError:
-                import code
-                code.interact(local=locals())
-                skipped += 1
-                continue
-
-print(f'skipped: {skipped}')
+train = data_ops.make_examples(train_raw, tokenizer='nltk', name='train')
+dev = data_ops.make_examples(dev_raw, tokenizer='nltk', name='dev')
 
 
 
 
-
-
-
-
+def make_spans(tokens):
+    pass
 
 
 import code
