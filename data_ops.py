@@ -2,6 +2,10 @@ import spacy
 import nltk
 import evaluate
 import logging
+import os
+import importlib.util
+
+import numpy as np
 
 from collections import defaultdict
 from spacy.lang.en import English
@@ -9,8 +13,11 @@ from nested_lookup import nested_lookup
 from nltk.parse.corenlp import CoreNLPParser
 from tqdm import tqdm
 from itertools import islice
+from subprocess import call
 
 logging.basicConfig(level=logging.INFO)
+
+BASEDIR = os.path.join(os.path.dirname(__file__), '.')
 
 nlp = spacy.load('en')
 spacy_tokenizer = English().Defaults.create_tokenizer(nlp)
@@ -82,10 +89,18 @@ def fix_whitespace(text):
     return ' '.join([x for x in [x.strip() for x in text.split(' ')] if x != ''])
 
 
-def make_examples(data, tokenizer, name=None):
+def make_examples(data,
+                  tokenizer,
+                  word2vec,
+                  embedding_size,
+                  name=None,
+                  max_context_len=None,
+                  max_answer_len=None
+                  ):
     examples = []
     total = 0
     skipped = 0
+
     for example in tqdm(data['data'], desc=name):
         title = example['title']
 
@@ -94,6 +109,11 @@ def make_examples(data, tokenizer, name=None):
             context = paragraph['context']
             context = fix_quotes(context)
             context_tokens = tokenize(context, tokenizer=tokenizer)
+            context_vectors = vectorize(context_tokens, word2vec, embedding_size)
+
+            if max_context_len and len(context_tokens) > max_context_len:
+                skipped += len(paragraph['qas'])
+                continue
 
             answer_map = token_idx_map(context, context_tokens)
 
@@ -102,11 +122,17 @@ def make_examples(data, tokenizer, name=None):
                 question = qa['question']
                 question = fix_quotes(question)
                 question_tokens = tokenize(question, tokenizer=tokenizer)
+                questions_vectors = vectorize(question_tokens, word2vec, embedding_size)
 
                 # Extract answer
                 answer = qa['answers'][0]['text']
                 answer = fix_quotes(answer)
                 answer_tokens = tokenize(answer, tokenizer=tokenizer)
+                answer_vectors = vectorize(answer_tokens, word2vec, embedding_size)
+
+                if max_answer_len and len(answer_tokens) > max_answer_len:
+                    skipped += 1
+                    continue
 
                 answer_start = qa['answers'][0]['answer_start']
                 answer_end = answer_start + len(answer)
@@ -127,13 +153,25 @@ def make_examples(data, tokenizer, name=None):
                     total += 1
                     assert extracted_answer == actual_clean, f'{extracted_answer} != {actual_clean}'
 
-                    example = (title, context_tokens, question_tokens, answer_tokens)
+                    example = {
+                        'title': title,
+                        'context': context_tokens,
+                        'question': question_tokens,
+                        'answer': answer_tokens,
+                        'context_vectors': context_vectors,
+                        'question_vectors': questions_vectors,
+                        'answer_vectors': answer_vectors,
+                        'start': span_start,
+                        'end': span_end
+                    }
                     examples.append(example)
 
                 except (AssertionError, KeyError) as e:
                     skipped += 1
                     continue
     ratio_skipped = skipped/total
+    logging.info(f'max_context_len: {max_context_len}')
+    logging.info(f'max_answer_len: {max_answer_len}')
     logging.info(f'skipped {skipped}/{total}\t({ratio_skipped})')
     print(skipped)
     print(ratio_skipped)
@@ -145,7 +183,7 @@ def window(seq, n=2):
     it = iter(enumerate(seq))
     result = tuple(islice(it, n))
     if len(result) == n:
-        yield (result[0][0], result[-1][0], [x  [1] for x in result])
+        yield (result[0][0], result[-1][0], [x[1] for x in result])
     for elem in it:
         result = result[1:] + (elem,)
         yield (result[0][0], result[-1][0], [x[1] for x in result])
@@ -157,3 +195,41 @@ def make_spans(seq, max_len=10):
         spans.extend(list(window(seq, n=span_len)))
     # now sort the spans
     return sorted(spans, key=lambda x: (x[0], x[1]))
+
+
+def glove_embeddings(embedding_size, emb_path=None, script_path=None):
+    emb_path = emb_path if emb_path else 'data/glove/glove.6B.{0}d.txt'.format(embedding_size)
+
+    try:
+        f = open(emb_path, 'r')
+    except IOError:
+        call(script_path if script_path else '{}/download_glove.sh'.format(BASEDIR), shell=True)
+        f = open(emb_path, 'r')
+
+    rows = f.read().split('\n')[:-1]
+
+    def _parse_embedding_row(embedding_row):
+        word, string_embedding = embedding_row.split(' ', 1)
+        return word, np.fromstring(string_embedding, sep=' ')
+
+    return dict([_parse_embedding_row(row) for row in tqdm(rows, desc='Parsing glove file.')])
+
+
+def vectorize(tokens, word2vec, embedding_size):
+    token_vectors = []
+    for token in tokens:
+        if token in word2vec:
+            token_vectors.append(word2vec[token])
+        else:
+            if token.lower() in word2vec:
+                token_vectors.append(word2vec[token.lower()])
+            else:
+                token_vectors.append(np.zeros_like(embedding_size))
+    return token_vectors
+
+
+def import_module(path):
+    spec = importlib.util.spec_from_file_location('', path)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
