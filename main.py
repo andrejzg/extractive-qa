@@ -104,6 +104,11 @@ label_t = tf.placeholder(
     name='labels_t'
 )
 
+span2position = data_ops.make_span2position(
+        seq_size=config['max_context_len'],
+        max_len=config['max_answer_len']
+    )
+
 
 # Model outputs
 logits = config['model_fn'](
@@ -111,8 +116,11 @@ logits = config['model_fn'](
     context_t_length,
     question_t,
     question_t_length,
+    span2position,
     config
 )
+
+
 # prediction_probs = tf.nn.softmax(logits, axis=-1)
 # predictions = tf.argmax(logits, axis=-1)
 #
