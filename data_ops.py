@@ -100,6 +100,10 @@ def make_examples(data,
     examples = []
     total = 0
     skipped = 0
+    span2position = make_span2position(
+        seq_size=max_context_len,
+        max_len=max_answer_len
+    )
 
     for example in tqdm(data['data'], desc=name):
         title = example['title']
@@ -153,6 +157,8 @@ def make_examples(data,
                     total += 1
                     assert extracted_answer == actual_clean, f'{extracted_answer} != {actual_clean}'
 
+                    span_positions = [span2position[(span_start, span_end)]]
+
                     example = {
                         'title': title,
                         'context': context_tokens,
@@ -161,9 +167,12 @@ def make_examples(data,
                         'context_vectors': context_vectors,
                         'question_vectors': questions_vectors,
                         'answer_vectors': answer_vectors,
-                        'start': span_start,
-                        'end': span_end
+                        'starts': [span_start],
+                        'ends': [span_end],
+                        'span_positions': span_positions,
+                        'label': np.asarray([1 if x in span_positions else 0 for x in span2position.values()])
                     }
+
                     examples.append(example)
 
                 except (AssertionError, KeyError) as e:
@@ -233,3 +242,12 @@ def import_module(path):
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     return m
+
+
+def make_span2position(seq_size, max_len):
+    seq = [0] * seq_size
+    spans = make_spans(seq, max_len)
+    span2position = {}
+    for i, span in enumerate(spans):
+        span2position[(span[0], span[1])] = i
+    return span2position
