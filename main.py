@@ -66,12 +66,53 @@ next_train_batch = lambda: [next(train_it) for _ in range(config['train_batch_si
 next_dev_batch = lambda: [next(train_it) for _ in range(config['train_batch_size'])]
 
 # Graph inputs
-contexts_t = tf.placeholder(tf.float32, [None, None, config['embeddings_size']], name='contexts_t')
-questions_t = tf.placeholder(tf.float32, [None, None, config['embeddings_size']], name='questions_t')
-labels_t = tf.placeholder(tf.int32, [None, ], name='labels_t')
+context_t = tf.placeholder(
+    tf.float32,
+    [
+        None,
+        config['max_context_len'],
+        config['embeddings_size']
+    ],
+    name='contexts_t'
+    )
+
+context_t_length = tf.placeholder(
+    tf.int32,
+    [None],
+    name='context_length'
+)
+
+question_t = tf.placeholder(
+    tf.float32,
+    [
+        None,
+        config['max_question_len'],
+        config['embeddings_size']],
+    name='questions_t'
+)
+
+question_t_length = tf.placeholder(
+    tf.int32,
+    [None],
+    name='question_length'
+)
+
+
+label_t = tf.placeholder(
+    tf.int32,
+    [None, ],
+    name='labels_t'
+)
+
 
 # Model outputs
-logits = config['model_fn'](contexts_t, questions_t, config)
+logits = config['model_fn'](
+    context_t,
+    context_t_length,
+    question_t,
+    question_t_length,
+    config
+)
 # prediction_probs = tf.nn.softmax(logits, axis=-1)
 # predictions = tf.argmax(logits, axis=-1)
 #

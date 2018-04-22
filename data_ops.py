@@ -132,7 +132,6 @@ def make_examples(data,
                 answer = qa['answers'][0]['text']
                 answer = fix_quotes(answer)
                 answer_tokens = tokenize(answer, tokenizer=tokenizer)
-                answer_vectors = vectorize(answer_tokens, word2vec, embedding_size)
 
                 if max_answer_len and len(answer_tokens) > max_answer_len:
                     skipped += 1
@@ -164,9 +163,10 @@ def make_examples(data,
                         'context': context_tokens,
                         'question': question_tokens,
                         'answer': answer_tokens,
+                        'context_length': len(context_tokens),
+                        'question_length': len(question_tokens),
                         'context_vectors': context_vectors,
                         'question_vectors': questions_vectors,
-                        'answer_vectors': answer_vectors,
                         'starts': [span_start],
                         'ends': [span_end],
                         'span_positions': span_positions,
