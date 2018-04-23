@@ -3,16 +3,19 @@ import ops
 import tensorflow as tf
 
 
-def rasor_net(context, context_length, question, question_length, span2position, config):
+def rasor_net(context, question, span2position):
     # Passage-aligned question representations
+    context_emb = ops.embed_sequence(inputs=context, name='embedding_layer')
+    question_emb = ops.embed_sequence(inputs=question, name='embedding_layer')
+
     context_dense = tf.layers.dense(
-        inputs=context,
-        units=context.get_shape()[-1].value
+        inputs=context_emb,
+        units=context_emb.get_shape()[-1].value
     )
 
     question_dense = tf.layers.dense(
-        inputs=question,
-        units=question.get_shape()[-1].value,
+        inputs=question_emb,
+        units=question_emb.get_shape()[-1].value,
     )
 
     s_passage_aligned = tf.matmul(context_dense, tf.transpose(question_dense, perm=[0, 2, 1]))
@@ -21,9 +24,9 @@ def rasor_net(context, context_length, question, question_length, span2position,
 
     # Passage-independent question representation
     question_lstm_emb, _ = ops.bidirectional_lstm(
-        inputs=question,
-        input_lengths=question_length,
-        size=25,
+        inputs=question_emb,
+        input_lengths=ops.unpadded_lengths(question),
+        size=50,
         name='passage_independent_bLSTM'
     )
 
@@ -32,20 +35,20 @@ def rasor_net(context, context_length, question, question_length, span2position,
         units=1,
     )
 
-    attn_passage_independent = tf.nn.softmax(tf.squeeze(s_passage_independent, axis=-1), axis=-1)
-    question_independent = attn_passage_independent * tf.transpose(question_lstm_emb, perm=[0, 2, 1])
-    question_independent = tf.transpose(question_independent, perm=[0, 2, 1])
+    attn_passage_independent = tf.nn.softmax(s_passage_independent, axis=1)
+
+    question_independent = attn_passage_independent * question_lstm_emb
 
     question_independent_final = tf.reduce_sum(question_independent, axis=1)
     question_independent_final_stacked = tf.stack([question_independent_final] * context.get_shape()[1].value, axis=1)
 
     # Concatenation
-    context_query_aware = tf.concat([question_aligned, context, question_independent_final_stacked], axis=-1)
+    context_query_aware = tf.concat([question_aligned, context_emb, question_independent_final_stacked], axis=-1)
 
     # Span representations
     context_query_aware_lstm, _ = ops.bidirectional_lstm(
         inputs=context_query_aware,
-        input_lengths=context_length,
+        input_lengths=ops.unpadded_lengths(context),
         size=50,
         name='context_query_aware_lstm'
     )
@@ -65,4 +68,4 @@ def rasor_net(context, context_length, question, question_length, span2position,
         name='final_dense_layer'
     )
 
-    return logits
+    return tf.reduce_sum(logits, axis=-1)

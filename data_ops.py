@@ -14,6 +14,7 @@ from nltk.parse.corenlp import CoreNLPParser
 from tqdm import tqdm
 from itertools import islice
 from subprocess import call
+from itertools import cycle
 
 logging.basicConfig(level=logging.INFO)
 
@@ -91,11 +92,11 @@ def fix_whitespace(text):
 
 def make_examples(data,
                   tokenizer,
-                  word2vec,
-                  embedding_size,
+                  word2id,
                   name=None,
-                  max_context_len=None,
-                  max_answer_len=None
+                  max_context_len=300,
+                  max_answer_len=10,
+                  max_question_len=20,
                   ):
     examples = []
     total = 0
@@ -113,7 +114,6 @@ def make_examples(data,
             context = paragraph['context']
             context = fix_quotes(context)
             context_tokens = tokenize(context, tokenizer=tokenizer)
-            context_vectors = vectorize(context_tokens, word2vec, embedding_size)
 
             if max_context_len and len(context_tokens) > max_context_len:
                 skipped += len(paragraph['qas'])
@@ -126,7 +126,6 @@ def make_examples(data,
                 question = qa['question']
                 question = fix_quotes(question)
                 question_tokens = tokenize(question, tokenizer=tokenizer)
-                questions_vectors = vectorize(question_tokens, word2vec, embedding_size)
 
                 # Extract answer
                 answer = qa['answers'][0]['text']
@@ -160,13 +159,12 @@ def make_examples(data,
 
                     example = {
                         'title': title,
-                        'context': context_tokens,
-                        'question': question_tokens,
-                        'answer': answer_tokens,
-                        'context_length': len(context_tokens),
-                        'question_length': len(question_tokens),
-                        'context_vectors': context_vectors,
-                        'question_vectors': questions_vectors,
+                        'context_raw': context_tokens,
+                        'question_raw': question_tokens,
+                        'answer_raw': answer_tokens,
+                        'context': pad_seq([word2id[w] for w in context_tokens], maxlen=max_context_len),
+                        'question': pad_seq([word2id[w] for w in question_tokens], maxlen=max_question_len),
+                        'answer': pad_seq([word2id[w] for w in answer_tokens], maxlen=max_answer_len),
                         'starts': [span_start],
                         'ends': [span_end],
                         'span_positions': span_positions,
@@ -224,7 +222,32 @@ def glove_embeddings(embedding_size, emb_path=None, script_path=None):
     return dict([_parse_embedding_row(row) for row in tqdm(rows, desc='Parsing glove file.')])
 
 
-def vectorize(tokens, word2vec, embedding_size):
+def make_glove_embedding_matrix(word2id, embedding_size, emb_path=None, script_path=None):
+    glove_embs = glove_embeddings(
+        embedding_size,
+        emb_path,
+        script_path
+    )
+
+    embedding_matrix = np.zeros((len(word2id) + 2, embedding_size))  # +1 for
+    unk = np.zeros(embedding_size)
+    embedding_matrix[0] = unk  # pad
+    embedding_matrix[1] = unk  # unk
+
+    for word, id in word2id.items():
+        if word in glove_embs:
+            vec = glove_embs[word]
+        elif word.lower() in glove_embs:
+            vec = glove_embs[word.lower()]
+        else:
+            vec = unk
+
+        embedding_matrix[id] = vec
+
+    return embedding_matrix
+
+
+def vectorize_tokens(tokens, word2vec, embedding_size):
     token_vectors = []
     for token in tokens:
         if token in word2vec:
@@ -233,8 +256,8 @@ def vectorize(tokens, word2vec, embedding_size):
             if token.lower() in word2vec:
                 token_vectors.append(word2vec[token.lower()])
             else:
-                token_vectors.append(np.zeros_like(embedding_size))
-    return token_vectors
+                token_vectors.append(np.zeros(embedding_size))
+    return np.asarray(token_vectors)
 
 
 def import_module(path):
@@ -251,3 +274,34 @@ def make_span2position(seq_size, max_len):
     for i, span in enumerate(spans):
         span2position[(span[0], span[1])] = i
     return span2position
+
+
+def pad_seq(seq, maxlen, reverse=False):
+    """ Pad or shorten a list of items """
+    res = seq
+    if len(seq) > maxlen:
+        if reverse:
+            del res[:(len(seq) - maxlen)]
+        else:
+            del res[maxlen:]
+    elif len(seq) < maxlen:
+        if reverse:
+            res = [0] * (maxlen - len(seq)) + res
+        else:
+            res.extend([0] * (maxlen - len(seq)))
+    return res
+
+
+def make_batcher(seq, batch_size):
+    seq_iterator = cycle(seq)
+
+    def batcher():
+        if batch_size:
+            batch = [next(seq_iterator) for _ in range(batch_size)]
+        else:
+            return seq
+        return batch
+
+    return batcher
+
+
