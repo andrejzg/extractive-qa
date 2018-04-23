@@ -8,7 +8,7 @@ import importlib.util
 import numpy as np
 
 from collections import defaultdict
-from spacy.lang.en import English
+# from spacy.lang.en import English
 from nested_lookup import nested_lookup
 from nltk.parse.corenlp import CoreNLPParser
 from tqdm import tqdm
@@ -21,8 +21,8 @@ logging.basicConfig(level=logging.INFO)
 
 BASEDIR = os.path.join(os.path.dirname(__file__), '.')
 
-nlp = spacy.load('en')
-spacy_tokenizer = English().Defaults.create_tokenizer(nlp)
+# nlp = spacy.load('en')
+# spacy_tokenizer = English().Defaults.create_tokenizer(nlp)
 stanford_tokenizer = CoreNLPParser()
 
 
@@ -72,8 +72,8 @@ def build_vocab_from_json_searches(data, search_keys, additional_words=None):
 def tokenize(text, tokenizer):
     if tokenizer == 'nltk':
         tokens = nltk.word_tokenize(text)
-    elif tokenizer == 'spacy':
-        tokens = [word.text for word in spacy_tokenizer(text)]
+    # elif tokenizer == 'spacy':
+    #     tokens = [word.text for word in spacy_tokenizer(text)]
     elif tokenizer == 'stanford':
         tokens = list(stanford_tokenizer.tokenize(text))
     else:
