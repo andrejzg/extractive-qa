@@ -12,6 +12,7 @@ import numpy as np
 
 from tensorflow.python.training.summary_io import SummaryWriterCache
 from collections import defaultdict
+from sklearn.metrics import f1_score, precision_score, recall_score
 
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
 
@@ -199,3 +200,26 @@ while True:
             feed_dict=dev_small_feed_dict
         )
 
+        predicted_labels = (dev_probs > 0.5).astype(int)
+
+        f1 = f1_score(
+            y_true=dev_labels,
+            y_pred=predicted_labels,
+            average='weighted'
+        )
+
+        precision = precision_score(
+            y_true=dev_labels,
+            y_pred=predicted_labels,
+            average='weighted'
+        )
+
+        recall = recall_score(
+            y_true=dev_labels,
+            y_pred=predicted_labels,
+            average='weighted'
+        )
+
+        metrics_logger.log_scalar('f1/dev_small', f1, current_step)
+        metrics_logger.log_scalar('precision/dev_small', precision, current_step)
+        metrics_logger.log_scalar('recall/dev_small', recall, current_step)
