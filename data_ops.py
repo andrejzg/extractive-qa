@@ -1,4 +1,4 @@
-import spacy
+# import spacy
 import nltk
 import evaluate
 import logging
@@ -56,10 +56,9 @@ def build_vocab_from_json_searches(data, search_keys, additional_words=None):
     all_text = [text for key in search_keys for text in nested_lookup(key, data)]
     all_text = ' '.join(all_text + additional_words)
 
-    tokenizer = English().Defaults.create_tokenizer(nlp)
     words = set()
 
-    for word in tokenizer(all_text):
+    for word in tokenize(all_text, 'nltk'):
         words.add(word.text)
 
     word2id = defaultdict(lambda: 1)  # use 0 for pad, 1 for unk
