@@ -59,7 +59,7 @@ def build_vocab_from_json_searches(data, search_keys, additional_words=None):
     words = set()
 
     for word in tokenize(all_text, 'nltk'):
-        words.add(word.text)
+        words.add(word)
 
     word2id = defaultdict(lambda: 1)  # use 0 for pad, 1 for unk
     for i, word in enumerate(words, start=2):
