@@ -52,9 +52,9 @@ def token_idx_map(text, tokens):
     return token_map
 
 
-def build_vocab_from_json_searches(data, search_keys):
+def build_vocab_from_json_searches(data, search_keys, additional_words=None):
     all_text = [text for key in search_keys for text in nested_lookup(key, data)]
-    all_text = ' '.join(all_text)
+    all_text = ' '.join(all_text + additional_words)
 
     tokenizer = English().Defaults.create_tokenizer(nlp)
     words = set()
@@ -107,10 +107,10 @@ def make_squad_examples(data,
         max_len=max_answer_len
     )
 
-    for example in tqdm(data['data'], desc=name):
-        title = example['title']
+    for line in tqdm(data['data'], desc=name):
+        title = line['title']
 
-        for paragraph in example['paragraphs']:
+        for paragraph in line['paragraphs']:
             # Extract context
             context = paragraph['context']
             context = fix_quotes(context)
@@ -189,7 +189,7 @@ def make_squad_examples(data,
 def make_conll_examples(data,
                         word2id,
                         label2question,
-                        name,
+                        name=None,
                         max_context_len=300,
                         max_answer_len=10,
                         max_question_len=20):
@@ -201,7 +201,7 @@ def make_conll_examples(data,
 
     examples = []
 
-    for line in data:
+    for line in tqdm(data, desc=name):
         words = [x[0] for x in line]
         labels = [x[1] for x in line]
 
@@ -301,7 +301,7 @@ def make_glove_embedding_matrix(word2id, embedding_size, emb_path=None, script_p
         if word in glove_embs:
             vec = glove_embs[word]
         elif word.lower() in glove_embs:
-            vec = glove_embs[word]
+            vec = glove_embs[word.lower()]
         else:
             vec = unk
 
@@ -368,3 +368,14 @@ def make_batcher(seq, batch_size):
     return batcher
 
 
+def parse_conll(filepath):
+    """ Parses a CoNLL-style file and turns it into nested list of (word,tag) tuples:
+     [
+     [(word, tag), (word, tag), (word, tag), (word,tag)],
+     [(word, tag), (word, tag), (word, tag)]
+     ]
+     """
+    data = open(filepath).read().split('\n\n')[1:]
+    data = [[(x.split()[0], x.split()[-1].split('-')[-1]) for x in line.split('\n') if len(x) >= 2] for line in data if line]
+
+    return data

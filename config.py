@@ -12,5 +12,8 @@ config = {
         'train_batch_size': 100,
         'dev_batch_size': None,
         'small_dev_batch_size': 400,
-        'model_fn': models.rasor_net
+        'model_fn': models.rasor_net,
+        'seed': 1337,
+        'train': ['squad', 'conll'],
+        'dev': ['squad']
     }

@@ -6,6 +6,8 @@ import sys
 import time
 import experiment_logging
 import shutil
+import random
+import itertools
 
 import tensorflow as tf
 import numpy as np
@@ -29,16 +31,19 @@ time_str = time.strftime('%d|%m|%Y@%H:%M:%S')
 logdir = f'model_logs/{run_name}_{time_str}'
 
 # Load raw data
-train_raw = json.load(open('data/train-v1.1.json'))
-dev_raw = json.load(open('data/dev-v1.1.json'))
+squad_train_raw = json.load(open('data/train-v1.1.json'))
+squad_dev_raw = json.load(open('data/dev-v1.1.json'))
+conll_train_raw = data_ops.parse_conll('data/conll/eng.train')
+conll_dev_raw = data_ops.parse_conll('data/conll/eng.testa')
 
 try:
     word2id = json.load(open('data/word2id.json', 'rb'))
     word2id = defaultdict(lambda: 1, word2id)  # use 1 for unk 0 for pad
 except FileNotFoundError:
     word2id = data_ops.build_vocab_from_json_searches(
-        data=train_raw,
-        search_keys=['context', 'question']
+        data=squad_train_raw,
+        search_keys=['context', 'question'],
+        additional_words=[x[0] for ex in conll_train_raw for x in ex]
     )
     json.dump(word2id, open('data/word2id.json', 'w'))
     embedding_matrix = data_ops.make_glove_embedding_matrix(embedding_size=100, word2id=word2id)
@@ -47,31 +52,84 @@ except FileNotFoundError:
 
 # Prepare data (tokenize + vectorize + truncate)
 try:
-    train = pickle.load(open('data/train.pkl', 'rb'))
-    dev = pickle.load(open('data/dev.pkl', 'rb'))
+    squad_train = pickle.load(open('data/squad_train.pkl', 'rb'))
+    conll_train = pickle.load(open('data/conll_train.pkl', 'rb'))
+    squad_dev = pickle.load(open('data/squad_dev.pkl', 'rb'))
+    conll_dev = pickle.load(open('data/conll_dev.pkl', 'rb'))
 except FileNotFoundError:
     glove_vectors = data_ops.glove_embeddings(100)
-    train = data_ops.make_squad_examples(
-        train_raw,
+    squad_train = data_ops.make_squad_examples(
+        squad_train_raw,
         word2id=word2id,
         tokenizer='nltk',
-        name='train',
+        name='squad train',
         max_context_len=config['max_context_len'],
         max_answer_len=config['max_answer_len'],
         max_question_len=config['max_question_len']
     )
-    dev = data_ops.make_squad_examples(
-        dev_raw,
+    squad_dev = data_ops.make_squad_examples(
+        squad_dev_raw,
         word2id=word2id,
         tokenizer='nltk',
-        name='dev',
+        name='squad dev',
         max_context_len=config['max_context_len'],
         max_answer_len=config['max_answer_len'],
         max_question_len=config['max_question_len']
     )
-    logging.info('Saving train and dev...')
-    pickle.dump(train, open('data/train.pkl', 'wb'))
-    pickle.dump(dev, open('data/dev.pkl', 'wb'))
+    logging.info('Saving squad train and dev...')
+
+    pickle.dump(squad_train, open('data/squad_train.pkl', 'wb'))
+    pickle.dump(squad_dev, open('data/squad_dev.pkl', 'wb'))
+
+    label2question = {
+        'LOC': 'Mark all locations',
+        'PER': 'Mark all people',
+        'ORG': 'Mark all organisations'
+    }
+
+    conll_train = data_ops.make_conll_examples(
+        conll_train_raw,
+        word2id=word2id,
+        label2question=label2question,
+        name='conll train',
+        max_context_len=config['max_context_len'],
+        max_answer_len=config['max_answer_len'],
+        max_question_len=config['max_question_len']
+    )
+
+    conll_dev = data_ops.make_conll_examples(
+        conll_dev_raw,
+        word2id=word2id,
+        label2question=label2question,
+        name='conll dev',
+        max_context_len=config['max_context_len'],
+        max_answer_len=config['max_answer_len'],
+        max_question_len=config['max_question_len']
+    )
+
+    logging.info('Saving conll train and dev...')
+    pickle.dump(squad_train, open('data/conll_train.pkl', 'wb'))
+    pickle.dump(squad_dev, open('data/conll_dev.pkl', 'wb'))
+
+
+trainsets = {
+    'squad': squad_train,
+    'conll': conll_train
+}
+
+devsets = {
+    'squad': squad_dev,
+    'conll': conll_dev
+}
+
+# Using config pick which datasets to train/eval on
+train = list(itertools.chain(*[trainsets[x] for x in config['train']]))
+dev = list(itertools.chain(*[devsets[x] for x in config['dev']]))
+
+# Shuffle datasets
+random.seed(config['seed'])
+random.shuffle(train)
+random.shuffle(dev)
 
 # Prepare batchers
 next_train = data_ops.make_batcher(train, batch_size=config['train_batch_size'])
