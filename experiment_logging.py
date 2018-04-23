@@ -4,7 +4,6 @@ Author: Sam Coope
 
 import tensorflow as tf
 from io import StringIO
-from scipy.misc import imsave
 import numpy as np
 
 
@@ -31,27 +30,7 @@ class TensorboardLogger(object):
         summary = tf.Summary(value=[tf.Summary.Value(tag=tag,
                                                      simple_value=value)])
         self.writer.add_summary(summary, step)
-
-    def log_images(self, tag, images, step):
-        """Logs a list of images."""
-
-        im_summaries = []
-        for nr, img in enumerate(images):
-            # Write the image to a string
-            s = StringIO()
-            imsave(s, img, format='png')
-
-            # Create an Image object
-            img_sum = tf.Summary.Image(encoded_image_string=s.getvalue(),
-                                       height=img.shape[0],
-                                       width=img.shape[1])
-            # Create a Summary value
-            im_summaries.append(tf.Summary.Value(tag='%s/%d' % (tag, nr),
-                                                 image=img_sum))
-
-        # Create and write Summary
-        summary = tf.Summary(value=im_summaries)
-        self.writer.add_summary(summary, step)
+        
 
     def log_histogram(self, tag, values, step, bins=1000, min=None, max=None, density=False):
         """Logs the histogram of a list/vector of values."""
