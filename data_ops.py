@@ -15,6 +15,7 @@ from tqdm import tqdm
 from itertools import islice
 from subprocess import call
 from itertools import cycle
+from itertools import groupby
 
 logging.basicConfig(level=logging.INFO)
 
@@ -90,14 +91,14 @@ def fix_whitespace(text):
     return ' '.join([x for x in [x.strip() for x in text.split(' ')] if x != ''])
 
 
-def make_examples(data,
-                  tokenizer,
-                  word2id,
-                  name=None,
-                  max_context_len=300,
-                  max_answer_len=10,
-                  max_question_len=20,
-                  ):
+def make_squad_examples(data,
+                        tokenizer,
+                        word2id,
+                        name=None,
+                        max_context_len=300,
+                        max_answer_len=10,
+                        max_question_len=20,
+                        ):
     examples = []
     total = 0
     skipped = 0
@@ -185,6 +186,68 @@ def make_examples(data,
     return examples
 
 
+def make_conll_examples(data,
+                        word2id,
+                        label2question,
+                        name,
+                        max_context_len=300,
+                        max_answer_len=10,
+                        max_question_len=20):
+
+    span2position = make_span2position(
+        seq_size=max_context_len,
+        max_len=max_answer_len
+    )
+
+    examples = []
+
+    for line in data:
+        words = [x[0] for x in line]
+        labels = [x[1] for x in line]
+
+        for label in label2question.keys():
+            if label in labels:
+                context = words
+                if max_context_len and len(context) > max_context_len:
+                    continue
+
+                question = label2question[label]
+                indicators = [1 if x == label else 0 for x in labels]
+
+                span_starts = []
+                span_ends = []
+
+                for k, g in groupby(enumerate(indicators), lambda ix: ix[1]):
+                    if k == 1:
+                        res = list(g)
+                        if max_answer_len and len(res) > max_answer_len:
+                            continue
+                        span_starts.append(res[0][0])
+                        span_ends.append(res[-1][0])
+
+                span_positions = [span2position[(s, e)] for s,e in zip(span_starts, span_ends)]
+
+                answers = [context[s:e+1] for s, e in zip(span_starts, span_ends)]
+
+                example = {
+                    'title': '',
+                    'context_raw': context,
+                    'question_raw': question,
+                    'answer_raw': answers,
+                    'context': pad_seq([word2id[w] for w in context], maxlen=max_context_len),
+                    'question': pad_seq([word2id[w] for w in question], maxlen=max_question_len),
+                    'answer': pad_seq([word2id[w] for answer in answers for w in answer], maxlen=max_answer_len),
+                    'starts': span_starts,
+                    'ends': span_ends,
+                    'span_positions': span_positions,
+                    'label': np.asarray([1 if x in span_positions else 0 for x in span2position.values()])
+                }
+
+                examples.append(example)
+
+    return examples
+
+
 def window(seq, n=2):
     """Return a sliding window (of width n) over data from the iterable"""
     it = iter(enumerate(seq))
@@ -238,7 +301,7 @@ def make_glove_embedding_matrix(word2id, embedding_size, emb_path=None, script_p
         if word in glove_embs:
             vec = glove_embs[word]
         elif word.lower() in glove_embs:
-            vec = glove_embs[word.lower()]
+            vec = glove_embs[word]
         else:
             vec = unk
 

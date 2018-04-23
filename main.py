@@ -51,7 +51,7 @@ try:
     dev = pickle.load(open('data/dev.pkl', 'rb'))
 except FileNotFoundError:
     glove_vectors = data_ops.glove_embeddings(100)
-    train = data_ops.make_examples(
+    train = data_ops.make_squad_examples(
         train_raw,
         word2id=word2id,
         tokenizer='nltk',
@@ -60,7 +60,7 @@ except FileNotFoundError:
         max_answer_len=config['max_answer_len'],
         max_question_len=config['max_question_len']
     )
-    dev = data_ops.make_examples(
+    dev = data_ops.make_squad_examples(
         dev_raw,
         word2id=word2id,
         tokenizer='nltk',
@@ -130,8 +130,8 @@ train_op = optimizer.minimize(loss, global_step=global_step_t)
 # Session
 sess = tf.train.MonitoredTrainingSession(
         checkpoint_dir=logdir,
-        save_checkpoint_secs=60,
-        save_summaries_steps=50
+        save_checkpoint_secs=300,
+        save_summaries_steps=config['small_eval_every_steps']
         )
 
 # Summaries
