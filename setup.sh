@@ -12,4 +12,4 @@ unzip corenlp.zip %% cd stanford-corenlp-full-2018-02-27
 pip install -U https://github.com/stanfordnlp/python-stanford-corenlp/archive/master.zip
 export CORENLP_HOME=`pwd`
 cd ../..
-pip install requirements.txt
+pip install -r requirements.txt
