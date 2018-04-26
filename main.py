@@ -40,13 +40,14 @@ try:
     word2id = json.load(open('data/word2id.json', 'rb'))
     word2id = defaultdict(lambda: 1, word2id)  # use 1 for unk 0 for pad
 except FileNotFoundError:
-    word2id = data_ops.build_vocab_from_json_searches(
+    word2id = data_ops.make_vocab_from_nested_lookups(
         data=squad_train_raw,
         search_keys=['context', 'question'],
         additional_words=[x[0] for ex in conll_train_raw for x in ex]
     )
     json.dump(word2id, open('data/word2id.json', 'w'))
-    embedding_matrix = data_ops.make_glove_embedding_matrix(embedding_size=100, word2id=word2id)
+    embeddings = data_ops.glove_embeddings(embedding_size=100)
+    embedding_matrix = data_ops.make_glove_embedding_matrix(word2vec=embeddings, word2id=word2id)
     np.save('data/embedding_matrix.npy', embedding_matrix)
 
 

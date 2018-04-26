@@ -25,12 +25,8 @@ nlp = spacy.load('en')
 spacy_tokenizer = English().Defaults.create_tokenizer(nlp)
 stanford_tokenizer = CoreNLPParser()
 
-def fix_apostrophe(text, start, end):
-    ans = text[:start] + text[start:end].replace("'", '') + text[end:]
-    return ans
 
-
-def token_idx_map(text, tokens):
+def index_by_starting_character(text, tokens):
     """
     Given a string of text and a list of its tokens produce a dict where the keys are the character start
     positions of the tokens and the values are [token, index] where index denotes the position of the token
@@ -51,7 +47,12 @@ def token_idx_map(text, tokens):
     return token_map
 
 
-def build_vocab_from_json_searches(data, search_keys, additional_words=None):
+def make_vocab_from_nested_lookups(data, search_keys, additional_words=None, default=1, start=2):
+    """
+    Used to build (word2id) vocabulary dictionaries from the string values of nested keys. For example, given a large
+    JSON you can use this function to build a word2id dictionary from a set of search keys. This is the case in
+    SQuAD where 'context' and 'question' keys are nested deep in the SQuAD train and dev JSON files.
+    """
     all_text = [text for key in search_keys for text in nested_lookup(key, data)]
     all_text = ' '.join(all_text + additional_words)
 
@@ -60,14 +61,20 @@ def build_vocab_from_json_searches(data, search_keys, additional_words=None):
     for word in tokenize(all_text, 'nltk'):
         words.add(word)
 
-    word2id = defaultdict(lambda: 1)  # use 0 for pad, 1 for unk
-    for i, word in enumerate(words, start=2):
+    word2id = defaultdict(lambda: default)  # by default we use 0 for pad, 1 for unk (unknown words)
+    for i, word in enumerate(words, start=start):
         word2id[word] = i
 
     return word2id
 
 
 def tokenize(text, tokenizer):
+    """
+    Tokenize text into a list of tokens using one of the following tokenizers:
+        - nltk
+        - spacy
+        - stanford
+    """
     if tokenizer == 'nltk':
         tokens = nltk.word_tokenize(text)
     elif tokenizer == 'spacy':
@@ -75,17 +82,23 @@ def tokenize(text, tokenizer):
     elif tokenizer == 'stanford':
         tokens = list(stanford_tokenizer.tokenize(text))
     else:
-        raise ValueError('Tokenizer must be one of the following: nltk|spacy|stanford')
+        raise ValueError('tokenizer param must be one of the following: nltk|spacy|stanford')
     return tokens
 
 
-def fix_quotes(text):
+def fix_double_quotes(text):
+    """
+    Given some text standardize all its double quotes by replacing them with the standard double quote symbol.
+    """
     ans = text.replace("''", '" ')
     ans = ans.replace("``", '" ')
     return ans
 
 
 def fix_whitespace(text):
+    """
+    Remove all non-single spaces from text.
+    """
     return ' '.join([x for x in [x.strip() for x in text.split(' ')] if x != ''])
 
 
@@ -97,6 +110,9 @@ def make_squad_examples(data,
                         max_answer_len=10,
                         max_question_len=20,
                         ):
+    """
+    Given a SQuAD dataset, builds a list of example dicts (see implementation).
+    """
     examples = []
     total = 0
     skipped = 0
@@ -111,24 +127,24 @@ def make_squad_examples(data,
         for paragraph in line['paragraphs']:
             # Extract context
             context = paragraph['context']
-            context = fix_quotes(context)
+            context = fix_double_quotes(context)
             context_tokens = tokenize(context, tokenizer=tokenizer)
 
             if max_context_len and len(context_tokens) > max_context_len:
                 skipped += len(paragraph['qas'])
                 continue
 
-            answer_map = token_idx_map(context, context_tokens)
+            answer_map = index_by_starting_character(context, context_tokens)
 
             for qa in paragraph['qas']:
                 # Extract question
                 question = qa['question']
-                question = fix_quotes(question)
+                question = fix_double_quotes(question)
                 question_tokens = tokenize(question, tokenizer=tokenizer)
 
                 # Extract answer
                 answer = qa['answers'][0]['text']
-                answer = fix_quotes(answer)
+                answer = fix_double_quotes(answer)
                 answer_tokens = tokenize(answer, tokenizer=tokenizer)
 
                 if max_answer_len and len(answer_tokens) > max_answer_len:
@@ -191,6 +207,9 @@ def make_conll_examples(data,
                         max_context_len=300,
                         max_answer_len=10,
                         max_question_len=20):
+    """
+    Given a CoNLL dataset, builds a list of example dicts (see implementation).
+    """
 
     span2position = make_span2position(
         seq_size=max_context_len,
@@ -246,8 +265,24 @@ def make_conll_examples(data,
     return examples
 
 
-def window(seq, n=2):
-    """Return a sliding window (of width n) over data from the iterable"""
+def make_spans(seq, max_len=10):
+    """
+    Given a sequence creates a list of spans up to and including size max_len where every span is an indexed windows
+    (start_idx, end_idx, [items]). See make_indexed_windows for more information.
+    """
+    spans = []
+    for span_len in range(1, max_len+1):
+        spans.extend(list(make_indexed_windows(seq, n=span_len)))
+    # now sort the spans by start position + end position (if start is the same)
+    return sorted(spans, key=lambda x: (x[0], x[1]))
+
+
+def make_indexed_windows(seq, n=2):
+    """
+    Return a sliding window of n items from a sequence of items. Every window is a tuple (star_idx, end_idx, [items])
+    where start_idx and end_idx are the start and end item indexes of the window items and [items] are the items
+    themselves.
+    """
     it = iter(enumerate(seq))
     result = tuple(islice(it, n))
     if len(result) == n:
@@ -257,16 +292,24 @@ def window(seq, n=2):
         yield (result[0][0], result[-1][0], [x[1] for x in result])
 
 
-def make_spans(seq, max_len=10):
-    spans = []
-    for span_len in range(1, max_len+1):
-        spans.extend(list(window(seq, n=span_len)))
-    # now sort the spans
-    return sorted(spans, key=lambda x: (x[0], x[1]))
+def make_span2position(seq_size, max_len):
+    """
+    Create a dictionary (start_idx, end_idx) -> span position.
+    """
+    seq = [0] * seq_size  # getting a bit hacky here...
+    spans = make_spans(seq, max_len)
+    span2position = {}
+    for i, span in enumerate(spans):
+        span2position[(span[0], span[1])] = i
+    return span2position
 
 
 def glove_embeddings(embedding_size, emb_path=None, script_path=None):
-    emb_path = emb_path if emb_path else 'data/glove/glove.6B.{0}d.txt'.format(embedding_size)
+    """
+    Prepare a word2vec dictionary {word -> vector} where the pre-trained vector embeddings are GloVe embeddings.
+    If the user does not have glove vectors in the project's /data directory then download them into it.
+    """
+    emb_path = emb_path if emb_path else '{}/data/glove/glove.6B.{}d.txt'.format(BASEDIR, embedding_size)
 
     try:
         f = open(emb_path, 'r')
@@ -283,32 +326,46 @@ def glove_embeddings(embedding_size, emb_path=None, script_path=None):
     return dict([_parse_embedding_row(row) for row in tqdm(rows, desc='Parsing glove file.')])
 
 
-def make_glove_embedding_matrix(word2id, embedding_size, emb_path=None, script_path=None):
-    glove_embs = glove_embeddings(
-        embedding_size,
-        emb_path,
-        script_path
-    )
+def make_glove_embedding_matrix(word2id, word2vec, unk=0, pad=1, unk_state=np.zeros):
+    """
+    Takes (1) a word2id dictionary and (2) a word2vec dictionary and creates a numpy embedding matrix
+    |vocab size| x |embedding size| with matched id -> vector matrix rows. The reason why we need this function
+    is because we tend to build the word2id dict ourselves from tokenized text data whereas word2vec usually
+    comes from some outside source.
 
-    embedding_matrix = np.zeros((len(word2id) + 2, embedding_size))  # +1 for
-    unk = np.zeros(embedding_size)
-    embedding_matrix[0] = unk  # pad
-    embedding_matrix[1] = unk  # unk
+    IMPORTANT:
+    - assumes word2id reserves values for pad and unknown words
+    - by default words in (1) but not in (2) are set to np.zeros (e.g. another option would be np.random.rand)
+    - embeddings of words not found in word2id are THROWN AWAY in this function (a workaround it to make sure they're
+      included in word2id)
+    """
+    embedding_size = len(next(iter(word2vec.values())))  # get first value from dict to find
+
+    embedding_matrix = np.zeros((len(word2id) + 2, embedding_size))  # +2 for unk & pad
+    zero_vec = np.zeros(embedding_size)
+    embedding_matrix[pad] = zero_vec  # pad
+    embedding_matrix[unk] = zero_vec  # unk
 
     for word, id in word2id.items():
-        if word in glove_embs:
-            vec = glove_embs[word]
-        elif word.lower() in glove_embs:
-            vec = glove_embs[word.lower()]
+        if word in word2vec:
+            vec = word2vec[word]
+        elif word.lower() in word2vec:
+            vec = word2vec[word.lower()]
         else:
-            vec = unk
+            vec = unk_state(embedding_size)
 
+        assert embedding_size == len(vec)
         embedding_matrix[id] = vec
 
     return embedding_matrix
 
 
-def vectorize_tokens(tokens, word2vec, embedding_size):
+def vectorize_tokens(tokens, word2vec):
+    """
+    Given a sequence of tokens, vectorize them using a word2vec dict.
+    """
+    embedding_size = len(next(iter(word2vec.values())))  # get first value from dict to find
+
     token_vectors = []
     for token in tokens:
         if token in word2vec:
@@ -322,23 +379,17 @@ def vectorize_tokens(tokens, word2vec, embedding_size):
 
 
 def import_module(path):
+    """
+    Primarily used for importing config files.
+    """
     spec = importlib.util.spec_from_file_location('', path)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     return m
 
 
-def make_span2position(seq_size, max_len):
-    seq = [0] * seq_size
-    spans = make_spans(seq, max_len)
-    span2position = {}
-    for i, span in enumerate(spans):
-        span2position[(span[0], span[1])] = i
-    return span2position
-
-
 def pad_seq(seq, maxlen, reverse=False):
-    """ Pad or shorten a list of items """
+    """ Pad or shorten list of items to a specified maxlen """
     res = seq
     if len(seq) > maxlen:
         if reverse:
@@ -353,14 +404,18 @@ def pad_seq(seq, maxlen, reverse=False):
     return res
 
 
-def make_batcher(seq, batch_size):
-    seq_iterator = cycle(seq)
+def make_batcher(seq, batch_size=5, exhaustive=False):
+    """
+    Given a sequence and batch_size, create a cycle iterator using itertools across the sequence and then construct
+    a batcher function to return which returns batch_size number of items from the sequence.
+    """
+    if exhaustive is True:
+        seq_iterator = iter(seq)
+    else:
+        seq_iterator = cycle(seq)
 
     def batcher():
-        if batch_size:
-            batch = [next(seq_iterator) for _ in range(batch_size)]
-        else:
-            return seq
+        batch = [next(seq_iterator) for _ in range(batch_size)]
         return batch
 
     return batcher
