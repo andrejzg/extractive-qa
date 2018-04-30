@@ -164,7 +164,10 @@ def main(
 
     label_t = tf.placeholder(
         tf.float32,
-        [None, len(span2position)],
+        [
+            None, 
+            len(span2position)
+        ],
         name='label_t'
     )
 
@@ -178,9 +181,12 @@ def main(
     prediction_probs = tf.sigmoid(logits)
 
     # Loss
-    loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=logits,
-                                                   labels=label_t,
-                                                   name='multilabel_loss')
+    loss = tf.nn.sigmoid_cross_entropy_with_logits(
+        logits=logits,
+        labels=label_t,
+        name='multilabel_loss'
+    )
+
     # Optimizer
     global_step_t = tf.train.create_global_step()
     train_op = optimizer.minimize(loss, global_step=global_step_t)
@@ -293,7 +299,7 @@ if __name__ == '__main__':
     # Read in user-provided config.py and run name.
     args = sys.argv[1:]
     assert len(args) == 2, 'usage: <path to config> <run_name>'
-    config_path, run_name = args
+    config_path, run_name = args # pylint: disable=unbalanced-tuple-unpacking
 
     # Import the user-provided config.py as a module
     config = data_ops.import_module(config_path).config
