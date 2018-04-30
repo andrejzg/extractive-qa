@@ -60,3 +60,31 @@ def normalize_linear(embedded_sequence):
     normalized = tf.transpose(tf.divide(tf.transpose(embedded_sequence, perm=[0, 2, 1]), row_sums), perm=[0, 2, 1])
 
     return normalized
+
+
+def mask(sequence_lengths, sequence):
+    with tf.name_scope('mask', values=[sequence_lengths, sequence]):
+        max_len = sequence.get_shape()[1].value
+        mask = tf.sequence_mask(sequence_lengths, max_len, dtype=tf.float32)
+        masked_seq = sequence * tf.expand_dims(mask, -1)
+        return masked_seq
+
+
+def sequence_softmax(sequence_weights, sequence_length, scope='sequence_softmax'):
+    with tf.name_scope(scope, values=[sequence_weights, sequence_length]):
+        max_sequenence_length = sequence_weights.get_shape()[1].value
+        mask_bs = tf.sequence_mask(
+            sequence_length,
+            maxlen=max_sequenence_length,
+            dtype=tf.float32,
+            name='pad_weights_removal_mask'
+        )  # b x sA
+        weights_a_exp_masked = mask_bs * tf.exp(sequence_weights)  # b x s (all exponentiated, but padded locs remain 0)
+        weights_norm = l1_normalize(weights_a_exp_masked)
+    return weights_norm
+
+
+def l1_normalize(unnormalized_values):
+    with tf.name_scope('l1_normalize', values=[unnormalized_values]):
+        normalized = unnormalized_values / tf.reduce_sum(unnormalized_values, axis=-1, keep_dims=True)
+    return normalized
