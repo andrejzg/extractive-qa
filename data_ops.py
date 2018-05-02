@@ -180,6 +180,9 @@ def make_squad_examples(data,
                         'context': pad_seq([word2id[w] for w in context_tokens], maxlen=max_context_len),
                         'question': pad_seq([word2id[w] for w in question_tokens], maxlen=max_question_len),
                         'answer': pad_seq([word2id[w] for w in answer_tokens], maxlen=max_answer_len),
+                        'context_len': len_or_maxlen(context_tokens, max_context_len),
+                        'question_len': len_or_maxlen(question_tokens, max_question_len),
+                        'answer_len': len_or_maxlen(answer_tokens, max_answer_len),
                         'starts': [span_start],
                         'ends': [span_end],
                         'span_positions': span_positions,
@@ -198,6 +201,10 @@ def make_squad_examples(data,
     print(skipped)
     print(ratio_skipped)
     return examples
+
+
+def len_or_maxlen(seq, maxlen):
+    return len(seq) if len(seq) <= maxlen else maxlen
 
 
 def make_conll_examples(data,
@@ -219,16 +226,16 @@ def make_conll_examples(data,
     examples = []
 
     for line in tqdm(data, desc=name):
-        words = [x[0] for x in line]
+        context_tokens = [x[0] for x in line]
         labels = [x[1] for x in line]
 
         for label in label2question.keys():
             if label in labels:
-                context = words
-                if max_context_len and len(context) > max_context_len:
+
+                if max_context_len and len(context_tokens) > max_context_len:
                     continue
 
-                question = label2question[label]
+                question_tokens = label2question[label].split()
                 indicators = [1 if x == label else 0 for x in labels]
 
                 span_starts = []
@@ -242,18 +249,21 @@ def make_conll_examples(data,
                         span_starts.append(res[0][0])
                         span_ends.append(res[-1][0])
 
-                span_positions = [span2position[(s, e)] for s,e in zip(span_starts, span_ends)]
+                span_positions = [span2position[(s, e)] for s, e in zip(span_starts, span_ends)]
 
-                answers = [context[s:e+1] for s, e in zip(span_starts, span_ends)]
+                answer_tokens = [context_tokens[s:e+1] for s, e in zip(span_starts, span_ends)]
 
                 example = {
                     'title': '',
-                    'context_raw': context,
-                    'question_raw': question,
-                    'answer_raw': answers,
-                    'context': pad_seq([word2id[w] for w in context], maxlen=max_context_len),
-                    'question': pad_seq([word2id[w] for w in question], maxlen=max_question_len),
-                    'answer': pad_seq([word2id[w] for answer in answers for w in answer], maxlen=max_answer_len),
+                    'context_raw': context_tokens,
+                    'question_raw': question_tokens,
+                    'answer_raw': answer_tokens,
+                    'context': pad_seq([word2id[w] for w in context_tokens], maxlen=max_context_len),
+                    'question': pad_seq([word2id[w] for w in question_tokens], maxlen=max_question_len),
+                    'answer': pad_seq([word2id[w] for answer in answer_tokens for w in answer], maxlen=max_answer_len),
+                    'context_len': len_or_maxlen(context_tokens, max_context_len),
+                    'question_len': len_or_maxlen(question_tokens, max_question_len),
+                    'answer_len': len_or_maxlen(answer_tokens, max_answer_len),
                     'starts': span_starts,
                     'ends': span_ends,
                     'span_positions': span_positions,

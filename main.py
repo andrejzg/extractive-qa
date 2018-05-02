@@ -147,6 +147,14 @@ def main(
         name='context_t'
         )
 
+    context_t_length = tf.placeholder(
+        tf.int32,
+        [
+            None,
+        ],
+        name='context_t_length'
+    )
+
     question_t = tf.placeholder(
         tf.int32,
         [
@@ -156,16 +164,25 @@ def main(
         name='question_t'
     )
 
+    question_t_length = tf.placeholder(
+        tf.int32,
+        [
+            None,
+        ],
+        name='question_t_length'
+    )
+
     span2position = data_ops.make_span2position(
             seq_size=max_context_len,
             max_len=max_answer_len
         )
+
     position2span = {v: k for k, v in span2position.items()}
 
     label_t = tf.placeholder(
         tf.float32,
         [
-            None, 
+            None,
             len(span2position)
         ],
         name='label_t'
@@ -174,7 +191,9 @@ def main(
     # Model outputs
     logits = model_fn(
         context_t,
+        context_t_length,
         question_t,
+        question_t_length,
         span2position,
     )
 
@@ -196,7 +215,7 @@ def main(
             checkpoint_dir=logdir,
             save_checkpoint_secs=300,
             save_summaries_steps=small_eval_every_steps
-            )
+    )
 
     # Summaries
     summary_writer = SummaryWriterCache.get(logdir)
@@ -208,7 +227,9 @@ def main(
 
     dev_feed_dict = {
             context_t: np.asarray([x['context'] for x in dev_batch]),
+            context_t_length: np.asarray([x['context_len'] for x in dev_batch]),
             question_t: np.asarray([x['question'] for x in dev_batch]),
+            question_t_length: np.asarray([x['question_len'] for x in dev_batch]),
             label_t: np.asarray([x['label'] for x in dev_batch]),
         }
 
@@ -217,7 +238,9 @@ def main(
         train_batch = next_train()
         train_feed_dict = {
             context_t: np.asarray([x['context'] for x in train_batch]),
+            context_t_length: np.asarray([x['context_len'] for x in train_batch]),
             question_t: np.asarray([x['question'] for x in train_batch]),
+            question_t_length: np.asarray([x['question_len'] for x in train_batch]),
             label_t: np.asarray([x['label'] for x in train_batch]),
         }
         current_step, train_loss, _ = sess.run(
@@ -266,7 +289,9 @@ def main(
 
             dev_small_feed_dict = {
                 context_t: np.asarray([x['context'] for x in dev_small_batch]),
+                context_t_length: np.asarray([x['context_len'] for x in dev_small_batch]),
                 question_t: np.asarray([x['question'] for x in dev_small_batch]),
+                question_t_length: np.asarray([x['question_len'] for x in dev_small_batch]),
                 label_t: np.asarray([x['label'] for x in dev_small_batch]),
             }
 

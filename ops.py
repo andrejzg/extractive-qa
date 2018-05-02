@@ -54,7 +54,7 @@ def unpadded_lengths(tensor):
 def normalize_linear(embedded_sequence):
     """ embedded_sequence: [batch size x example length x embeding size] """
     row_sums = tf.reduce_sum(embedded_sequence, axis=-1)
-    row_sums = tf.expand_dims(row_sums, 1) + 1e-32
+    row_sums = tf.expand_dims(row_sums, 1) + 1e-32  # prevent NaNs
 
     # Normalize
     normalized = tf.transpose(tf.divide(tf.transpose(embedded_sequence, perm=[0, 2, 1]), row_sums), perm=[0, 2, 1])

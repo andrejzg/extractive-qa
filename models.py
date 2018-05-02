@@ -3,12 +3,10 @@ import tensorflow as tf
 import ops
 
 
-def rasor_net(context, question, span2position):
+def rasor_net(context, context_len, question, question_len, span2position):
     # Passage-aligned question representations
     context_emb = ops.embed_sequence(inputs=context, name='embedding_layer')
-    context_length = ops.unpadded_lengths(context_emb)
     question_emb = ops.embed_sequence(inputs=question, name='embedding_layer')
-    question_length = ops.unpadded_lengths(question_emb)
 
     context_dense = tf.layers.dense(
         inputs=context_emb,
@@ -21,15 +19,18 @@ def rasor_net(context, question, span2position):
     )
 
     s_passage_aligned = tf.matmul(context_dense, tf.transpose(question_dense, perm=[0, 2, 1]))
-    import code  # NOQA
-    code.interact(local=locals())
-    attn_passage_aligned = ops.sequence_softmax(s_passage_aligned, context_length)
+
+    mask_pa = tf.cast(tf.equal(s_passage_aligned, 0.0), tf.float32)
+    s_passage_aligned_exp = tf.exp(s_passage_aligned)
+    s_passage_aligned_masked = mask_pa * s_passage_aligned_exp
+    attn_passage_aligned = ops.normalize_linear(s_passage_aligned_masked)
+
     question_aligned = tf.matmul(attn_passage_aligned, question_dense)
 
     # Passage-independent question representation
     question_lstm_emb, _ = ops.bidirectional_lstm(
         inputs=question_emb,
-        input_lengths=question_length,
+        input_lengths=question_len,
         size=50,
         name='passage_independent_bLSTM'
     )
@@ -39,7 +40,11 @@ def rasor_net(context, question, span2position):
         units=1,
     )
 
-    attn_passage_independent = ops.sequence_softmax(s_passage_independent, context_length)
+    mask_pi = tf.cast(tf.equal(s_passage_independent, 0.0), tf.float32)
+    s_passage_independent_exp = tf.exp(s_passage_independent)
+    s_passage_independent_masked = mask_pi * s_passage_independent_exp
+
+    attn_passage_independent = ops.normalize_linear(s_passage_independent_masked)
 
     question_independent = attn_passage_independent * question_lstm_emb
 
@@ -52,7 +57,7 @@ def rasor_net(context, question, span2position):
     # Span representations
     context_query_aware_lstm, _ = ops.bidirectional_lstm(
         inputs=context_query_aware,
-        input_lengths=context_length,
+        input_lengths=context_len,
         size=50,
         name='context_query_aware_lstm'
     )
@@ -71,7 +76,5 @@ def rasor_net(context, question, span2position):
         units=1,
         name='final_dense_layer'
     )
-
-
 
     return tf.squeeze(logits, axis=-1)
