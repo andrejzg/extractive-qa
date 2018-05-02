@@ -309,7 +309,7 @@ def main(
             predicted_labels = (dev_probs > 0.5).astype(int)
             for metric_name, metric_fn in basic_metrics.items():
                 metrics_logger.log_scalar(
-                    f'dev_large/{metric_name}',
+                    f'dev_small/{metric_name}',
                     metric_fn(
                         y_true=dev_labels,
                         y_pred=predicted_labels,
