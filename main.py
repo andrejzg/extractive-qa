@@ -200,11 +200,13 @@ def main(
     prediction_probs = tf.sigmoid(logits)
 
     # Loss
-    loss = tf.nn.sigmoid_cross_entropy_with_logits(
+    divergence = tf.nn.sigmoid_cross_entropy_with_logits(
         logits=logits,
         labels=label_t,
         name='multilabel_loss'
     )
+
+    loss = tf.reduce_sum(divergence)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
