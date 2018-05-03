@@ -22,7 +22,7 @@ def rasor_net(context, context_len, question, question_len, span2position):
 
     s_passage_aligned = tf.matmul(context_dense, tf.transpose(question_dense, perm=[0, 2, 1]))
 
-    mask_pa = tf.cast(tf.equal(s_passage_aligned, 0.0), tf.float32)
+    mask_pa = tf.cast(tf.not_equal(s_passage_aligned, 0.0), tf.float32)
     s_passage_aligned_exp = tf.exp(s_passage_aligned)
     s_passage_aligned_masked = mask_pa * s_passage_aligned_exp
     attn_passage_aligned = ops.normalize_linear(s_passage_aligned_masked)
@@ -43,7 +43,7 @@ def rasor_net(context, context_len, question, question_len, span2position):
         activation=tf.nn.relu
     )
 
-    mask_pi = tf.cast(tf.equal(s_passage_independent, 0.0), tf.float32)
+    mask_pi = tf.cast(tf.not_equal(s_passage_independent, 0.0), tf.float32)
     s_passage_independent_exp = tf.exp(s_passage_independent)
     s_passage_independent_masked = mask_pi * s_passage_independent_exp
 
@@ -75,6 +75,9 @@ def rasor_net(context, context_len, question, question_len, span2position):
 
     spans = tf.stack(spans, axis=1, name='stacked_span_representations')
 
+    # Build a mask which masks out-of-bound spans
+    span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
+
     pre_logits = tf.layers.dense(
         inputs=spans,
         units=spans.get_shape()[-1].value,
@@ -88,4 +91,6 @@ def rasor_net(context, context_len, question, question_len, span2position):
         name='final_ffn',
     )
 
-    return tf.squeeze(logits, axis=-1)
+    logits = tf.squeeze(logits, axis=-1) * span_mask
+
+    return logits, spans

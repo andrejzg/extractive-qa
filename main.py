@@ -189,7 +189,7 @@ def main(
     )
 
     # Model outputs
-    logits = model_fn(
+    logits, spans = model_fn(
         context_t,
         context_t_length,
         question_t,
@@ -197,7 +197,10 @@ def main(
         span2position,
     )
 
-    prediction_probs = tf.sigmoid(logits)
+    # Build a mask which masks out-of-bound spans
+    span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
+
+    prediction_probs = tf.sigmoid(logits) * span_mask
 
     # Loss
     divergence = tf.nn.sigmoid_cross_entropy_with_logits(
@@ -206,7 +209,7 @@ def main(
         name='multilabel_loss'
     )
 
-    loss = tf.reduce_mean(divergence)
+    loss = tf.reduce_mean(divergence * span_mask)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
@@ -297,8 +300,10 @@ def main(
                 label_t: np.asarray([x['label'] for x in dev_small_batch]),
             }
 
-            dev_probs, dev_labels, dev_loss = sess.run(
+            dev_logits, dev_spans, dev_probs, dev_labels, dev_loss = sess.run(
                 [
+                    logits,
+                    spans,
                     prediction_probs,
                     'label_t:0',
                     loss

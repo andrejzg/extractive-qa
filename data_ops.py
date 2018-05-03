@@ -233,6 +233,7 @@ def make_conll_examples(data,
             if label in labels:
 
                 if max_context_len and len(context_tokens) > max_context_len:
+                    # context_tokens = context_tokens[:max_context_len]
                     continue
 
                 question_tokens = label2question[label].split()
