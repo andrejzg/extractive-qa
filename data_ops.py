@@ -194,7 +194,7 @@ def make_squad_examples(data,
                 except (AssertionError, KeyError) as e:
                     skipped += 1
                     continue
-    ratio_skipped = skipped/total
+    ratio_skipped = skipped/total if total != 0 else 0
     logging.info(f'max_context_len: {max_context_len}')
     logging.info(f'max_answer_len: {max_answer_len}')
     logging.info(f'skipped {skipped}/{total}\t({ratio_skipped})')

@@ -10,12 +10,14 @@ def rasor_net(context, context_len, question, question_len, span2position):
 
     context_dense = tf.layers.dense(
         inputs=context_emb,
-        units=context_emb.get_shape()[-1].value
+        units=context_emb.get_shape()[-1].value,
+        activation=tf.nn.relu
     )
 
     question_dense = tf.layers.dense(
         inputs=question_emb,
         units=question_emb.get_shape()[-1].value,
+        activation=tf.nn.relu
     )
 
     s_passage_aligned = tf.matmul(context_dense, tf.transpose(question_dense, perm=[0, 2, 1]))
@@ -38,6 +40,7 @@ def rasor_net(context, context_len, question, question_len, span2position):
     s_passage_independent = tf.layers.dense(
         inputs=question_lstm_emb,
         units=1,
+        activation=tf.nn.relu
     )
 
     mask_pi = tf.cast(tf.equal(s_passage_independent, 0.0), tf.float32)
@@ -63,6 +66,7 @@ def rasor_net(context, context_len, question, question_len, span2position):
     )
 
     spans = []
+    # TODO: DONT CONSIDER OOB SPANS
     for k, v in span2position.items():
         start = context_query_aware_lstm[:, k[0]]
         end = context_query_aware_lstm[:, k[1]]
@@ -71,10 +75,17 @@ def rasor_net(context, context_len, question, question_len, span2position):
 
     spans = tf.stack(spans, axis=1, name='stacked_span_representations')
 
-    logits = tf.layers.dense(
+    pre_logits = tf.layers.dense(
         inputs=spans,
+        units=spans.get_shape()[-1].value,
+        name='pre_final_ffn',
+        activation=tf.nn.relu
+    )
+
+    logits = tf.layers.dense(
+        inputs=pre_logits,
         units=1,
-        name='final_dense_layer'
+        name='final_ffn',
     )
 
     return tf.squeeze(logits, axis=-1)

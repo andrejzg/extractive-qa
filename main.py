@@ -206,7 +206,7 @@ def main(
         name='multilabel_loss'
     )
 
-    loss = tf.reduce_sum(divergence)
+    loss = tf.reduce_mean(divergence)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
@@ -307,6 +307,7 @@ def main(
             )
 
             predicted_labels = (dev_probs > 0.5).astype(int)
+
             for metric_name, metric_fn in basic_metrics.items():
                 metrics_logger.log_scalar(
                     f'dev_small/{metric_name}',
