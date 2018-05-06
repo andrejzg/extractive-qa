@@ -198,7 +198,7 @@ def main(
     )
 
     # Build a mask which masks out-of-bound spans
-    span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
+    span_mask = tf.cast(tf.reduce_any(tf.equal(spans, 0), axis=-1), tf.float32)
 
     prediction_probs = tf.sigmoid(logits) * span_mask
 
