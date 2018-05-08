@@ -50,7 +50,11 @@ def main(
         )
         json.dump(word2id, open('data/word2id.json', 'w'))
         embeddings = data_ops.glove_embeddings(embedding_size=100)
-        embedding_matrix = data_ops.make_glove_embedding_matrix(word2vec=embeddings, word2id=word2id)
+        embedding_matrix = data_ops.make_glove_embedding_matrix(
+            word2vec=embeddings,
+            word2id=word2id,
+            unk_state=np.random.rand
+        )
         np.save('data/embedding_matrix.npy', embedding_matrix)
 
     # Prepare data (tokenize + vectorize + truncate)
@@ -198,8 +202,8 @@ def main(
     )
 
     # Build a mask which masks out-of-bound spans
-    span_mask = tf.cast(tf.reduce_any(tf.equal(spans, 0), axis=-1), tf.float32)
-
+    # span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
+    span_mask = tf.cast(tf.reduce_any(tf.not_equal(spans, 0), axis=-1), tf.float32)
     prediction_probs = tf.sigmoid(logits) * span_mask
 
     # Loss

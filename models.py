@@ -66,7 +66,6 @@ def rasor_net(context, context_len, question, question_len, span2position):
     )
 
     spans = []
-    # TODO: DONT CONSIDER OOB SPANS
     for k, v in span2position.items():
         start = context_query_aware_lstm[:, k[0]]
         end = context_query_aware_lstm[:, k[1]]
@@ -76,7 +75,8 @@ def rasor_net(context, context_len, question, question_len, span2position):
     spans = tf.stack(spans, axis=1, name='stacked_span_representations')
 
     # Build a mask which masks out-of-bound spans
-    span_mask = tf.cast(tf.reduce_any(tf.equal(spans, 0), axis=-1), tf.float32)
+    # span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
+    span_mask = tf.cast(tf.reduce_any(tf.not_equal(spans, 0), axis=-1), tf.float32)
 
     pre_logits = tf.layers.dense(
         inputs=spans,
