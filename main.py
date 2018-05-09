@@ -7,7 +7,7 @@ import random
 import itertools
 from collections import defaultdict
 
-from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 import tensorflow as tf
 from tensorflow.python.training.summary_io import SummaryWriterCache
 import numpy as np
@@ -207,10 +207,17 @@ def main(
     prediction_probs = tf.sigmoid(logits) * span_mask
 
     # Loss
-    divergence = tf.nn.sigmoid_cross_entropy_with_logits(
+    # divergence = tf.nn.sigmoid_cross_entropy_with_logits(
+    #     logits=logits,
+    #     labels=label_t,
+    #     name='multilabel_loss'
+    # )
+
+    divergence = tf.nn.weighted_cross_entropy_with_logits(
+        targets=label_t,
         logits=logits,
-        labels=label_t,
-        name='multilabel_loss'
+        pos_weight=50,
+        name='multilabel_weighted_loss'
     )
 
     loss = tf.reduce_mean(divergence * span_mask)
@@ -282,15 +289,30 @@ def main(
             )
             predicted_labels = (dev_probs > 0.5).astype(int)
             for metric_name, metric_fn in basic_metrics.items():
-                metrics_logger.log_scalar(
-                    f'dev_large/{metric_name}',
-                    metric_fn(
-                        y_true=dev_labels,
-                        y_pred=predicted_labels,
-                        average='weighted'
-                    ),
-                    current_step
+                score = metric_fn(
+                    y_true=np.ndarray.flatten(dev_labels),
+                    y_pred=np.ndarray.flatten(predicted_labels),
+                    average=None
                 )
+
+                for i, val in enumerate(score):
+                    metrics_logger.log_scalar(
+                        f'dev_large/{metric_name}/label_{i}',
+                        val,
+                        current_step
+                    )
+
+            acc = accuracy_score(
+                y_true=np.ndarray.flatten(dev_labels),
+                y_pred=np.ndarray.flatten(predicted_labels),
+            )
+
+            metrics_logger.log_scalar(
+                f'dev_small/accuracy',
+                acc,
+                current_step
+            )
+
         elif small_eval_every_steps is not None and current_step % small_eval_every_steps == 0:
             logging.info('<small eval>:dev')
 
@@ -318,15 +340,29 @@ def main(
             predicted_labels = (dev_probs > 0.5).astype(int)
 
             for metric_name, metric_fn in basic_metrics.items():
-                metrics_logger.log_scalar(
-                    f'dev_small/{metric_name}',
-                    metric_fn(
-                        y_true=dev_labels,
-                        y_pred=predicted_labels,
-                        average='weighted'
-                    ),
-                    current_step
+                score = metric_fn(
+                    y_true=np.ndarray.flatten(dev_labels),
+                    y_pred=np.ndarray.flatten(predicted_labels),
+                    average=None
                 )
+
+                for i, val in enumerate(score):
+                    metrics_logger.log_scalar(
+                        f'dev_small/{metric_name}/label_{i}',
+                        val,
+                        current_step
+                    )
+
+            acc = accuracy_score(
+                y_true=np.ndarray.flatten(dev_labels),
+                y_pred=np.ndarray.flatten(predicted_labels),
+            )
+
+            metrics_logger.log_scalar(
+                f'dev_small/accuracy',
+                acc,
+                current_step
+            )
 
 
 if __name__ == '__main__':
