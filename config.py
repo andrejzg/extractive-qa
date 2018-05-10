@@ -3,7 +3,7 @@ import tensorflow as tf
 import models
 
 config = {
-        'optimizer': tf.train.AdamOptimizer(learning_rate=5e-3),
+        'optimizer': tf.train.AdamOptimizer(learning_rate=1e-3),
         'embeddings_size': 100,
         'max_context_len': 60,
         'max_answer_len': 5,
