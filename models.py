@@ -67,9 +67,11 @@ def rasor_net(context, context_len, question, question_len, span2position):
 
     spans = []
     for k, v in span2position.items():
+        # span_length = k[1] - k[0] + 1
         start = context_query_aware_lstm[:, k[0]]
         end = context_query_aware_lstm[:, k[1]]
-        span = tf.concat([start, end], axis=-1, name='span_{}'.format(v))
+        span_max = tf.reduce_max(context_query_aware_lstm[:, k[0]:k[1]+1], axis=1)
+        span = tf.concat([start, end, span_max], axis=-1, name='span_{}'.format(v))
         spans.append(span)
 
     spans = tf.stack(spans, axis=1, name='stacked_span_representations')
@@ -85,8 +87,12 @@ def rasor_net(context, context_len, question, question_len, span2position):
         activation=tf.nn.relu
     )
 
+    prob = tf.placeholder_with_default(1.0, shape=(), name='out_dropout')
+
+    logits_drouput = tf.nn.dropout(pre_logits, keep_prob=prob)
+
     logits = tf.layers.dense(
-        inputs=pre_logits,
+        inputs=logits_drouput,
         units=1,
         name='final_ffn',
     )

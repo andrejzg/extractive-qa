@@ -30,6 +30,7 @@ def main(
     max_question_len,
     small_eval_every_steps,
     large_eval_every_steps,
+    dropout,
     **unused
 ):
 
@@ -258,6 +259,7 @@ def main(
             question_t: np.asarray([x['question'] for x in train_batch]),
             question_t_length: np.asarray([x['question_len'] for x in train_batch]),
             label_t: np.asarray([x['label'] for x in train_batch]),
+            'out_dropout:0': dropout,
         }
         current_step, train_loss, _ = sess.run(
             [

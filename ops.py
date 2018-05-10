@@ -7,7 +7,7 @@ def bidirectional_lstm(inputs, name, size, input_lengths=None):
     Main bi-LSTM used for passing over word embeddings.
     """
 
-    with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
+    with tf.variable_scope(name, reuse=tf.AUTO_REUSE, initializer=tf.contrib.layers.xavier_initializer()):
 
         cell_fw = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=1.0)
         cell_bw = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=1.0)
