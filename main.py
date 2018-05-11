@@ -115,8 +115,8 @@ def main(
         )
 
         logging.info('Saving conll train and dev...')
-        pickle.dump(squad_train, open('data/conll_train.pkl', 'wb'))
-        pickle.dump(squad_dev, open('data/conll_dev.pkl', 'wb'))
+        pickle.dump(conll_train, open('data/conll_train.pkl', 'wb'))
+        pickle.dump(conll_dev, open('data/conll_dev.pkl', 'wb'))
 
     trainsets = {
         'squad': squad_train,
