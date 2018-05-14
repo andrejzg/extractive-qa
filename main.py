@@ -359,25 +359,26 @@ def main(
                 n=2
             )
 
-            experiment_logging.print_spans(
-                to_pick=to_pick_correct,
-                predicted_labels=predicted_labels,
-                context_ids=context_dev_small,
-                question_ids=question_dev_small,
-                position2span=position2span,
-                span_color='\x1b[6;30;42m',
-                id2word=id2word,
-                )
-
-            experiment_logging.print_spans(
-                to_pick=to_pick_wrong,
-                predicted_labels=predicted_labels,
-                context_ids=context_dev_small,
-                question_ids=question_dev_small,
-                position2span=position2span,
-                span_color='\x1b[0;37;41m',
-                id2word=id2word,
-                )
+            if to_pick_correct is not None:
+                experiment_logging.print_spans(
+                    to_pick=to_pick_correct,
+                    predicted_labels=predicted_labels,
+                    context_ids=context_dev_small,
+                    question_ids=question_dev_small,
+                    position2span=position2span,
+                    span_color='\x1b[6;30;42m',
+                    id2word=id2word,
+                    )
+            if to_pick_wrong is not None:
+                experiment_logging.print_spans(
+                    to_pick=to_pick_wrong,
+                    predicted_labels=predicted_labels,
+                    context_ids=context_dev_small,
+                    question_ids=question_dev_small,
+                    position2span=position2span,
+                    span_color='\x1b[0;37;41m',
+                    id2word=id2word,
+                    )
 
             for metric_name, metric_fn in basic_metrics.items():
                 score = metric_fn(

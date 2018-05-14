@@ -62,7 +62,16 @@ class TensorboardLogger(object):
         self.writer.flush()
 
 
-def print_spans(to_pick, context_ids, question_ids, predicted_labels, span_color, position2span, id2word, ignore_ids=(0, 1)):
+def print_spans(
+        to_pick,
+        context_ids,
+        question_ids,
+        predicted_labels,
+        span_color,
+        position2span,
+        id2word,
+        ignore_ids=(0, 1)
+        ):
     contexts = [' '.join([id2word[w] if w not in ignore_ids else '' for w in x]).strip() for x in context_ids[to_pick]]
     questions = [' '.join([id2word[w] if w not in ignore_ids else '' for w in x]).strip() for x in question_ids[to_pick]]
 
@@ -83,7 +92,11 @@ def print_spans(to_pick, context_ids, question_ids, predicted_labels, span_color
         print('\n')
 
 
-def select_n_classified(ground_truth, predicted, correct=True, n=5):
+def select_n_classified(
+        ground_truth,
+        predicted,
+        correct=True, n=5
+        ):
     # compare ground-truth labels with predicted labels
     elem_comp = np.equal(predicted, ground_truth)
 
@@ -92,7 +105,8 @@ def select_n_classified(ground_truth, predicted, correct=True, n=5):
 
     # Depending on the correct=True/False flag either pick n correct examples or n incorrectly classified ones
     selected_row_idx = (correct_rows == correct).nonzero()[0]
-    to_pick = set(np.random.choice(selected_row_idx, n, replace=True))  # set() used in case n > len(selected_row_idx)
-    to_pick = list(to_pick)
-
-    return to_pick
+    if len(selected_row_idx) > 0:
+        # set() used in case n > len(selected_row_idx)
+        to_pick = set(np.random.choice(selected_row_idx, n, replace=True))
+        to_pick = list(to_pick)
+        return to_pick
