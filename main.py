@@ -183,6 +183,7 @@ def main(
         )
 
     position2span = {v: k for k, v in span2position.items()}
+    id2word = {v: k for k, v in word2id.items()}
 
     label_t = tf.placeholder(
         tf.float32,
@@ -320,10 +321,13 @@ def main(
 
             dev_small_batch = next_small_dev()
 
+            context_dev_small = np.asarray([x['context'] for x in dev_small_batch])
+            question_dev_small = np.asarray([x['question'] for x in dev_small_batch])
+
             dev_small_feed_dict = {
-                context_t: np.asarray([x['context'] for x in dev_small_batch]),
+                context_t: context_dev_small,
                 context_t_length: np.asarray([x['context_len'] for x in dev_small_batch]),
-                question_t: np.asarray([x['question'] for x in dev_small_batch]),
+                question_t: question_dev_small,
                 question_t_length: np.asarray([x['question_len'] for x in dev_small_batch]),
                 label_t: np.asarray([x['label'] for x in dev_small_batch]),
             }
@@ -340,6 +344,40 @@ def main(
             )
 
             predicted_labels = (dev_probs > 0.5).astype(int)
+
+            to_pick_correct = experiment_logging.select_n_classified(
+                ground_truth=dev_labels,
+                predicted=predicted_labels,
+                correct=True,
+                n=2
+            )
+
+            to_pick_wrong = experiment_logging.select_n_classified(
+                ground_truth=dev_labels,
+                predicted=predicted_labels,
+                correct=False,
+                n=2
+            )
+
+            experiment_logging.print_spans(
+                to_pick=to_pick_correct,
+                predicted_labels=predicted_labels,
+                context_ids=context_dev_small,
+                question_ids=question_dev_small,
+                position2span=position2span,
+                span_color='\x1b[6;30;42m',
+                id2word=id2word,
+                )
+
+            experiment_logging.print_spans(
+                to_pick=to_pick_wrong,
+                predicted_labels=predicted_labels,
+                context_ids=context_dev_small,
+                question_ids=question_dev_small,
+                position2span=position2span,
+                span_color='\x1b[0;37;41m',
+                id2word=id2word,
+                )
 
             for metric_name, metric_fn in basic_metrics.items():
                 score = metric_fn(
