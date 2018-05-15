@@ -12,8 +12,6 @@ import experiment_logging
 
 
 def run_experiment(
-    train,
-    dev,
     random,
     model_fn,
     dataset_fn,
@@ -82,7 +80,8 @@ def run_experiment(
         name='multilabel_weighted_loss'
     )
 
-    loss = tf.reduce_mean(divergence * span_mask)
+    loss_per_example = tf.reduce_mean(divergence * span_mask, axis=1)
+    loss = tf.reduce_mean(loss_per_example)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
@@ -128,11 +127,7 @@ def run_experiment(
             'out_dropout:0': dropout,
         }
         current_step, train_loss, _ = sess.run(
-            [
-                global_step_t,
-                loss,
-                train_op
-            ],
+            [global_step_t, loss, train_op],
             feed_dict=train_feed_dict
         )
 
@@ -153,7 +148,7 @@ def run_experiment(
                         'spans': spans,
                         'prediction_probs': prediction_probs,
                         'label_t': label_t,
-                        'loss': loss
+                        'loss_per_example': loss_per_example
                     },
                     feed_dict=dataset_feed_dict
                 ) for dataset_name, dataset_feed_dict in dev_feed_dicts.items()
@@ -161,14 +156,20 @@ def run_experiment(
 
             # build a combined dataset
             output_names = outputs_for_each_dataset[list(outputs_for_each_dataset.keys())[0]].keys()  # HACK
+
             all_dev_outputs = {
-                output_name: np.concatentate([
+                output_name: np.concatenate([
                     outputs_for_each_dataset[dataset_name][output_name] for dataset_name in outputs_for_each_dataset
                 ]) for output_name in output_names
             }
             outputs_for_each_dataset['combined'] = all_dev_outputs
 
             for dataset_name, dev_model_outputs in outputs_for_each_dataset.items():
+                metrics_logger.log_scalar(
+                    f'dev_large/loss/{dataset_name}',
+                    dev_model_outputs['loss_per_example'].mean(),
+                    current_step
+                )
 
                 dev_probs = dev_model_outputs['prediction_probs']
                 dev_labels = dev_model_outputs['label_t']
@@ -203,8 +204,8 @@ def run_experiment(
                 if dataset_name == 'combined':  # only want per-dataset examples
                     continue
 
-                context_dev = np.asarray([x['context'] for x in dev_feed_dicts[dataset_name]])
-                question_dev = np.asarray([x['context'] for x in dev_feed_dicts[dataset_name]])
+                context_dev = np.asarray([x['context'] for x in dev_data[dataset_name]])
+                question_dev = np.asarray([x['context'] for x in dev_data[dataset_name]])
                 to_pick_correct = experiment_logging.select_n_classified(
                     ground_truth=dev_labels,
                     predicted=predicted_labels,

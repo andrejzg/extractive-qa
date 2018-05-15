@@ -5,13 +5,13 @@ import models
 import datasets
 
 dataset_seed = 1337
-train_datasets = (datasets.SquadDataset('train'),)
-dev_datasets = (datasets.SquadDataset('development'),)
+train_datasets = {'squad': datasets.SquadDataset('train')}
+dev_datasets = {'squad': datasets.SquadDataset('development')}
 
 config = {
     'optimizer': tf.train.AdamOptimizer(learning_rate=1e-3),
     'embeddings_size': 100,
-    'max_context_len': 60,
+    'max_context_len': 250,
     'max_answer_len': 5,
     'max_question_len': 20,
     'large_eval_every_steps': 200,

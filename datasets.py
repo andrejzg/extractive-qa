@@ -47,6 +47,7 @@ def find_cached_or_build_dataset(
     )
     try:
         with open(f'{data_directory}/dataset_{dataset_hash}.p', 'wb') as f:
+            logging.info('caching dataset at: ' + f'{data_directory}/dataset_{dataset_hash}.p')
             pickle.dump(data_for_experiment, f)
     except Exception as e:
         logging.error(e)
