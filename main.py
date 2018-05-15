@@ -1,11 +1,6 @@
-import json
 import logging
-import pickle
 import sys
 import shutil
-import random
-import itertools
-from collections import defaultdict
 
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 import tensorflow as tf
@@ -16,11 +11,12 @@ import data_ops
 import experiment_logging
 
 
-def main(
+def run_experiment(
     train,
     dev,
-    seed,
+    random,
     model_fn,
+    dataset_fn,
     optimizer,
     train_batch_size,
     dev_batch_size,
@@ -31,168 +27,38 @@ def main(
     small_eval_every_steps,
     large_eval_every_steps,
     dropout,
+    logdir,
     **unused
 ):
 
-    # Load raw data
-    squad_train_raw = json.load(open('data/train-v1.1.json'))
-    squad_dev_raw = json.load(open('data/dev-v1.1.json'))
-    conll_train_raw = data_ops.parse_conll('data/conll/eng.train')
-    conll_dev_raw = data_ops.parse_conll('data/conll/eng.testa')
+    train_data, dev_data, misc = dataset_fn()
+    assert len(train_data) > 0 and len(dev_data) > 0
+    word2id = misc['word2id']
+    embedding_matrix = misc['embedding_matrix']
 
-    try:
-        word2id = json.load(open('data/word2id.json', 'rb'))
-        word2id = defaultdict(lambda: 1, word2id)  # use 1 for unk 0 for pad
-    except FileNotFoundError:
-        word2id = data_ops.make_vocab_from_nested_lookups(
-            data=squad_train_raw,
-            search_keys=['context', 'question'],
-            additional_words=[x[0] for ex in conll_train_raw for x in ex]
-        )
-        json.dump(word2id, open('data/word2id.json', 'w'))
-        embeddings = data_ops.glove_embeddings(embedding_size=100)
-        embedding_matrix = data_ops.make_glove_embedding_matrix(
-            word2vec=embeddings,
-            word2id=word2id,
-            unk_state=np.random.rand
-        )
-        np.save('data/embedding_matrix.npy', embedding_matrix)
-
-    # Prepare data (tokenize + vectorize + truncate)
-    try:
-        squad_train = pickle.load(open('data/squad_train.pkl', 'rb'))
-        conll_train = pickle.load(open('data/conll_train.pkl', 'rb'))
-        squad_dev = pickle.load(open('data/squad_dev.pkl', 'rb'))
-        conll_dev = pickle.load(open('data/conll_dev.pkl', 'rb'))
-    except FileNotFoundError:
-        squad_train = data_ops.make_squad_examples(
-            squad_train_raw,
-            word2id=word2id,
-            tokenizer='nltk',
-            name='squad train',
-            max_context_len=max_context_len,
-            max_answer_len=max_answer_len,
-            max_question_len=max_question_len
-        )
-        squad_dev = data_ops.make_squad_examples(
-            squad_dev_raw,
-            word2id=word2id,
-            tokenizer='nltk',
-            name='squad dev',
-            max_context_len=max_context_len,
-            max_answer_len=max_answer_len,
-            max_question_len=max_question_len
-        )
-        logging.info('Saving squad train and dev...')
-
-        pickle.dump(squad_train, open('data/squad_train.pkl', 'wb'))
-        pickle.dump(squad_dev, open('data/squad_dev.pkl', 'wb'))
-
-        label2question = {
-            'LOC': 'Mark all locations',
-            'PER': 'Mark all people',
-            'ORG': 'Mark all organisations'
-        }
-
-        conll_train = data_ops.make_conll_examples(
-            conll_train_raw,
-            word2id=word2id,
-            label2question=label2question,
-            name='conll train',
-            max_context_len=max_context_len,
-            max_answer_len=max_answer_len,
-            max_question_len=max_question_len
-        )
-
-        conll_dev = data_ops.make_conll_examples(
-            conll_dev_raw,
-            word2id=word2id,
-            label2question=label2question,
-            name='conll dev',
-            max_context_len=max_context_len,
-            max_answer_len=max_answer_len,
-            max_question_len=max_question_len
-        )
-
-        logging.info('Saving conll train and dev...')
-        pickle.dump(conll_train, open('data/conll_train.pkl', 'wb'))
-        pickle.dump(conll_dev, open('data/conll_dev.pkl', 'wb'))
-
-    trainsets = {
-        'squad': squad_train,
-        'conll': conll_train
-    }
-
-    devsets = {
-        'squad': squad_dev,
-        'conll': conll_dev
-    }
-
-    # Using config pick which datasets to train/eval on
-    train = list(itertools.chain(*[trainsets[x] for x in train]))
-    dev = list(itertools.chain(*[devsets[x] for x in dev]))
-
-    # Shuffle datasets
-    random.seed(seed)
-    random.shuffle(train)
-    random.shuffle(dev)
-
-    # Prepare batchers
-    next_train = data_ops.make_batcher(train, batch_size=train_batch_size)
-    next_dev = data_ops.make_batcher(dev, batch_size=dev_batch_size)
-    next_small_dev = data_ops.make_batcher(dev, batch_size=small_dev_batch_size)
+    all_training_data = np.array(
+        sum([dataset for dataset in train_data.values()], [])
+    )
+    # all_dev_data = np.array( for small dev batches
+    #     sum([dataset for dataset in dev_data.values()], [])
+    # )
 
     # Graph inputs
-    context_t = tf.placeholder(
-        tf.int32,
-        [
-            None,
-            max_context_len,
-        ],
-        name='context_t'
-        )
+    context_t = tf.placeholder(tf.int32, [None, max_context_len], name='context_t')
+    context_t_length = tf.placeholder(tf.int32, [None], name='context_t_length')
 
-    context_t_length = tf.placeholder(
-        tf.int32,
-        [
-            None,
-        ],
-        name='context_t_length'
-    )
-
-    question_t = tf.placeholder(
-        tf.int32,
-        [
-            None,
-            max_question_len,
-        ],
-        name='question_t'
-    )
-
-    question_t_length = tf.placeholder(
-        tf.int32,
-        [
-            None,
-        ],
-        name='question_t_length'
-    )
+    question_t = tf.placeholder(tf.int32, [None, max_question_len], name='question_t')
+    question_t_length = tf.placeholder(tf.int32, [None], name='question_t_length')
 
     span2position = data_ops.make_span2position(
-            seq_size=max_context_len,
-            max_len=max_answer_len
-        )
+        seq_size=max_context_len,
+        max_len=max_answer_len
+    )
+
+    label_t = tf.placeholder(tf.float32, [None, len(span2position)], name='label_t')
 
     position2span = {v: k for k, v in span2position.items()}
     id2word = {v: k for k, v in word2id.items()}
-
-    label_t = tf.placeholder(
-        tf.float32,
-        [
-            None,
-            len(span2position)
-        ],
-        name='label_t'
-    )
 
     # Model outputs
     logits, spans = model_fn(
@@ -201,20 +67,14 @@ def main(
         question_t,
         question_t_length,
         span2position,
+        embedding_matrix
     )
 
     # Build a mask which masks out-of-bound spans
-    # span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
     span_mask = tf.cast(tf.reduce_any(tf.not_equal(spans, 0), axis=-1), tf.float32)
     prediction_probs = tf.sigmoid(logits) * span_mask
 
     # Loss
-    # divergence = tf.nn.sigmoid_cross_entropy_with_logits(
-    #     logits=logits,
-    #     labels=label_t,
-    #     name='multilabel_loss'
-    # )
-
     divergence = tf.nn.weighted_cross_entropy_with_logits(
         targets=label_t,
         logits=logits,
@@ -230,9 +90,9 @@ def main(
 
     # Session
     sess = tf.train.MonitoredTrainingSession(
-            checkpoint_dir=logdir,
-            save_checkpoint_secs=300,
-            save_summaries_steps=small_eval_every_steps
+        checkpoint_dir=logdir,
+        save_checkpoint_secs=300,
+        save_summaries_steps=small_eval_every_steps
     )
 
     # Summaries
@@ -241,19 +101,24 @@ def main(
     shutil.copyfile(config_path, logdir + '/config.py')  # save config in logdir
 
     # Fetch entire dev set (no need to do this inside the eval loop repeatedly)
-    dev_batch = next_dev()
-
-    dev_feed_dict = {
-            context_t: np.asarray([x['context'] for x in dev_batch]),
-            context_t_length: np.asarray([x['context_len'] for x in dev_batch]),
-            question_t: np.asarray([x['question'] for x in dev_batch]),
-            question_t_length: np.asarray([x['question_len'] for x in dev_batch]),
-            label_t: np.asarray([x['label'] for x in dev_batch]),
-        }
+    dev_feed_dicts = {  # One feed dict for each dataset
+        dataset_name: {
+            context_t: np.asarray([x['context'] for x in dataset]),
+            context_t_length: np.asarray([x['context_len'] for x in dataset]),
+            question_t: np.asarray([x['question'] for x in dataset]),
+            question_t_length: np.asarray([x['question_len'] for x in dataset]),
+            label_t: np.asarray([x['label'] for x in dataset]),
+        } for dataset_name, dataset in dev_data.items()
+    }
 
     # Train-Eval loop
+    epoch_indices = np.random.permutation(np.arange(len(all_training_data)))
     while True:
-        train_batch = next_train()
+        train_indices = epoch_indices[:train_batch_size]
+        if len(epoch_indices) < train_batch_size:
+            epoch_indices = np.random.permutation(np.arange(len(all_training_data)))
+
+        train_batch = all_training_data[train_indices]
         train_feed_dict = {
             context_t: np.asarray([x['context'] for x in train_batch]),
             context_t_length: np.asarray([x['context_len'] for x in train_batch]),
@@ -271,8 +136,6 @@ def main(
             feed_dict=train_feed_dict
         )
 
-        metrics_logger.log_scalar('train/loss', train_loss.mean(), current_step)
-
         basic_metrics = {
             'f1_score': f1_score,
             'precision_score': precision_score,
@@ -280,130 +143,102 @@ def main(
         }
 
         if large_eval_every_steps is not None and current_step % large_eval_every_steps == 0:
-            logging.info('<large eval>:dev')
-
-            dev_probs, dev_labels, dev_loss = sess.run(
-                [
-                    prediction_probs,
-                    'label_t:0',
-                    loss
-                ],
-                feed_dict=dev_feed_dict
-            )
-            predicted_labels = (dev_probs > 0.5).astype(int)
-            for metric_name, metric_fn in basic_metrics.items():
-                score = metric_fn(
-                    y_true=np.ndarray.flatten(dev_labels),
-                    y_pred=np.ndarray.flatten(predicted_labels),
-                    average=None
-                )
-
-                for i, val in enumerate(score):
-                    metrics_logger.log_scalar(
-                        f'dev_large/{metric_name}/label_{i}',
-                        val,
-                        current_step
-                    )
-
-            acc = accuracy_score(
-                y_true=np.ndarray.flatten(dev_labels),
-                y_pred=np.ndarray.flatten(predicted_labels),
-            )
-
-            metrics_logger.log_scalar(
-                f'dev_small/accuracy',
-                acc,
-                current_step
-            )
-
-        elif small_eval_every_steps is not None and current_step % small_eval_every_steps == 0:
+            metrics_logger.log_scalar('train/loss', train_loss.mean(), current_step)
             logging.info('<small eval>:dev')
 
-            dev_small_batch = next_small_dev()
-
-            context_dev_small = np.asarray([x['context'] for x in dev_small_batch])
-            question_dev_small = np.asarray([x['question'] for x in dev_small_batch])
-
-            dev_small_feed_dict = {
-                context_t: context_dev_small,
-                context_t_length: np.asarray([x['context_len'] for x in dev_small_batch]),
-                question_t: question_dev_small,
-                question_t_length: np.asarray([x['question_len'] for x in dev_small_batch]),
-                label_t: np.asarray([x['label'] for x in dev_small_batch]),
+            outputs_for_each_dataset = {
+                dataset_name: sess.run(
+                    {
+                        'logits': logits,
+                        'spans': spans,
+                        'prediction_probs': prediction_probs,
+                        'label_t': label_t,
+                        'loss': loss
+                    },
+                    feed_dict=dataset_feed_dict
+                ) for dataset_name, dataset_feed_dict in dev_feed_dicts.items()
             }
 
-            dev_logits, dev_spans, dev_probs, dev_labels, dev_loss = sess.run(
-                [
-                    logits,
-                    spans,
-                    prediction_probs,
-                    'label_t:0',
-                    loss
-                ],
-                feed_dict=dev_small_feed_dict
-            )
+            # build a combined dataset
+            output_names = outputs_for_each_dataset[list(outputs_for_each_dataset.keys())[0]].keys()  # HACK
+            all_dev_outputs = {
+                output_name: np.concatentate([
+                    outputs_for_each_dataset[dataset_name][output_name] for dataset_name in outputs_for_each_dataset
+                ]) for output_name in output_names
+            }
+            outputs_for_each_dataset['combined'] = all_dev_outputs
 
-            predicted_labels = (dev_probs > 0.5).astype(int)
+            for dataset_name, dev_model_outputs in outputs_for_each_dataset.items():
 
-            to_pick_correct = experiment_logging.select_n_classified(
-                ground_truth=dev_labels,
-                predicted=predicted_labels,
-                correct=True,
-                n=2
-            )
+                dev_probs = dev_model_outputs['prediction_probs']
+                dev_labels = dev_model_outputs['label_t']
 
-            to_pick_wrong = experiment_logging.select_n_classified(
-                ground_truth=dev_labels,
-                predicted=predicted_labels,
-                correct=False,
-                n=2
-            )
+                predicted_labels = (dev_probs > 0.5).astype(int)
 
-            if to_pick_correct is not None:
-                experiment_logging.print_spans(
-                    to_pick=to_pick_correct,
-                    predicted_labels=predicted_labels,
-                    context_ids=context_dev_small,
-                    question_ids=question_dev_small,
-                    position2span=position2span,
-                    span_color='\x1b[6;30;42m',
-                    id2word=id2word,
-                    )
-            if to_pick_wrong is not None:
-                experiment_logging.print_spans(
-                    to_pick=to_pick_wrong,
-                    predicted_labels=predicted_labels,
-                    context_ids=context_dev_small,
-                    question_ids=question_dev_small,
-                    position2span=position2span,
-                    span_color='\x1b[0;37;41m',
-                    id2word=id2word,
+                for metric_name, metric_fn in basic_metrics.items():
+                    score = metric_fn(
+                        y_true=np.ndarray.flatten(dev_labels),
+                        y_pred=np.ndarray.flatten(predicted_labels),
+                        average=None
                     )
 
-            for metric_name, metric_fn in basic_metrics.items():
-                score = metric_fn(
+                    for i, val in enumerate(score):
+                        metrics_logger.log_scalar(
+                            f'dev_large/{metric_name}/{dataset_name}/label_{i}',
+                            val,
+                            current_step
+                        )
+
+                acc = accuracy_score(
                     y_true=np.ndarray.flatten(dev_labels),
                     y_pred=np.ndarray.flatten(predicted_labels),
-                    average=None
                 )
 
-                for i, val in enumerate(score):
-                    metrics_logger.log_scalar(
-                        f'dev_small/{metric_name}/label_{i}',
-                        val,
-                        current_step
+                metrics_logger.log_scalar(
+                    f'dev_large/{dataset_name}/accuracy',
+                    acc,
+                    current_step
+                )
+
+                if dataset_name == 'combined':  # only want per-dataset examples
+                    continue
+
+                context_dev = np.asarray([x['context'] for x in dev_feed_dicts[dataset_name]])
+                question_dev = np.asarray([x['context'] for x in dev_feed_dicts[dataset_name]])
+                to_pick_correct = experiment_logging.select_n_classified(
+                    ground_truth=dev_labels,
+                    predicted=predicted_labels,
+                    correct=True,
+                    n=2
+                )
+
+                to_pick_wrong = experiment_logging.select_n_classified(
+                    ground_truth=dev_labels,
+                    predicted=predicted_labels,
+                    correct=False,
+                    n=2
+                )
+
+                if to_pick_correct is not None:
+                    experiment_logging.print_spans(
+                        to_pick=to_pick_correct,
+                        predicted_labels=predicted_labels,
+                        context_ids=context_dev,
+                        question_ids=question_dev,
+                        position2span=position2span,
+                        span_color='\x1b[6;30;42m',
+                        id2word=id2word,
                     )
-
-            acc = accuracy_score(
-                y_true=np.ndarray.flatten(dev_labels),
-                y_pred=np.ndarray.flatten(predicted_labels),
-            )
-
-            metrics_logger.log_scalar(
-                f'dev_small/accuracy',
-                acc,
-                current_step
-            )
+                if to_pick_wrong is not None:
+                    experiment_logging.print_spans(
+                        to_pick=to_pick_wrong,
+                        predicted_labels=predicted_labels,
+                        context_ids=context_dev,
+                        question_ids=question_dev,
+                        position2span=position2span,
+                        span_color='\x1b[0;37;41m',
+                        id2word=id2word,
+                    )
 
 
 if __name__ == '__main__':
@@ -413,7 +248,7 @@ if __name__ == '__main__':
     # Read in user-provided config.py and run name.
     args = sys.argv[1:]
     assert len(args) == 2, 'usage: <path to config> <run_name>'
-    config_path, run_name = args # pylint: disable=unbalanced-tuple-unpacking
+    config_path, run_name = args
 
     # Import the user-provided config.py as a module
     config = data_ops.import_module(config_path).config
@@ -421,4 +256,4 @@ if __name__ == '__main__':
     # Logdir naming convention
     logdir = f'model_logs/{run_name}'
 
-    main(**config)
+    run_experiment(logdir=logdir, **config)

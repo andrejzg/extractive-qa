@@ -3,10 +3,10 @@ import tensorflow as tf
 import ops
 
 
-def rasor_net(context, context_len, question, question_len, span2position):
+def rasor_net(context, context_len, question, question_len, span2position, embedding_matrix):
     # Passage-aligned question representations
-    context_emb = ops.embed_sequence(inputs=context, name='embedding_layer')
-    question_emb = ops.embed_sequence(inputs=question, name='embedding_layer')
+    context_emb = ops.embed_sequence(inputs=context, name='embedding_layer', embedding_matrix=embedding_matrix)
+    question_emb = ops.embed_sequence(inputs=question, name='embedding_layer', embedding_matrix=embedding_matrix)
 
     context_dense = tf.layers.dense(
         inputs=context_emb,

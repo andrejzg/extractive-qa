@@ -25,14 +25,14 @@ def bidirectional_lstm(inputs, name, size, input_lengths=None):
     return outputs_concat, final_states
 
 
-def embed_sequence(inputs, name):
+def embed_sequence(inputs, name, embedding_matrix):
     """
     Used to embed sequences of word ids.
     """
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
         embedding_matrix = tf.get_variable(
             name="embedding_matrix",
-            initializer=tf.constant(np.load(open('data/embedding_matrix.npy', 'rb')),
+            initializer=tf.constant(embedding_matrix,
                                     dtype=tf.float32,
                                     name="embedding_matrix_init"),
             trainable=False)
