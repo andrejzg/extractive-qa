@@ -1,21 +1,21 @@
-import spacy
-import nltk
-import evaluate
 import logging
 import os
 import importlib.util
-
-import numpy as np
-
-from collections import defaultdict
-from spacy.lang.en import English
-from nested_lookup import nested_lookup
-from nltk.parse.corenlp import CoreNLPParser
-from tqdm import tqdm
 from itertools import islice
 from subprocess import call
 from itertools import cycle
 from itertools import groupby
+from collections import defaultdict
+
+import numpy as np
+import spacy
+import nltk
+from spacy.lang.en import English
+from nested_lookup import nested_lookup
+from nltk.parse.corenlp import CoreNLPParser
+from tqdm import tqdm
+
+import evaluate
 
 logging.basicConfig(level=logging.INFO)
 
@@ -47,25 +47,25 @@ def index_by_starting_character(text, tokens):
     return token_map
 
 
-def make_vocab_from_nested_lookups(data, search_keys, additional_words=None, default=1, start=2):
-    """
-    Used to build (word2id) vocabulary dictionaries from the string values of nested keys. For example, given a large
-    JSON you can use this function to build a word2id dictionary from a set of search keys. This is the case in
-    SQuAD where 'context' and 'question' keys are nested deep in the SQuAD train and dev JSON files.
-    """
-    all_text = [text for key in search_keys for text in nested_lookup(key, data)]
-    all_text = ' '.join(all_text + additional_words)
-
-    words = set()
-
-    for word in tokenize(all_text, 'nltk'):
-        words.add(word)
-
-    word2id = defaultdict(lambda: default)  # by default we use 0 for pad, 1 for unk (unknown words)
-    for i, word in enumerate(words, start=start):
-        word2id[word] = i
-
-    return word2id
+# def make_vocab_from_nested_lookups(data, search_keys, additional_words=None, default=1, start=2):
+#     """
+#     Used to build (word2id) vocabulary dictionaries from the string values of nested keys. For example, given a large
+#     JSON you can use this function to build a word2id dictionary from a set of search keys. This is the case in
+#     SQuAD where 'context' and 'question' keys are nested deep in the SQuAD train and dev JSON files.
+#     """
+#     all_text = [text for key in search_keys for text in nested_lookup(key, data)]
+#     all_text = ' '.join(all_text + additional_words)
+#
+#     words = set()
+#
+#     for word in tokenize(all_text, 'nltk'):
+#         words.add(word)
+#
+#     word2id = defaultdict(lambda: default)  # by default we use 0 for pad, 1 for unk (unknown words)
+#     for i, word in enumerate(words, start=start):
+#         word2id[word] = i
+#
+#     return word2id
 
 
 def tokenize(text, tokenizer):
@@ -413,23 +413,6 @@ def pad_seq(seq, maxlen, reverse=False):
         else:
             res.extend([0] * (maxlen - len(seq)))
     return res
-
-
-def make_batcher(seq, batch_size=5, exhaustive=False):
-    """
-    Given a sequence and batch_size, create a cycle iterator using itertools across the sequence and then construct
-    a batcher function to return which returns batch_size number of items from the sequence.
-    """
-    if exhaustive is True:
-        seq_iterator = iter(seq)
-    else:
-        seq_iterator = cycle(seq)
-
-    def batcher():
-        batch = [next(seq_iterator) for _ in range(batch_size)]
-        return batch
-
-    return batcher
 
 
 def parse_conll(filepath):
