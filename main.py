@@ -224,7 +224,7 @@ def run_experiment(
                 )
 
                 metrics_logger.log_scalar(
-                    f'accuracy{dataset_name}',
+                    f'accuracy/{dataset_name}',
                     acc,
                     current_step
                 )
@@ -259,7 +259,6 @@ def run_experiment(
                         span_color='\x1b[6;30;42m',
                         id2word=id2word,
                     )
-                    print('==========================================')
                 if to_pick_wrong is not None:
                     print('INCORRECT EXAMPLES ==========================================')
                     experiment_logging.print_spans(
@@ -271,7 +270,7 @@ def run_experiment(
                         span_color='\x1b[0;37;41m',
                         id2word=id2word,
                     )
-                    print('==========================================')
+                print('==========================================')
             logging.info(f'evaluation took {time.time() - beginning_of_eval_time:.2f} seconds')
 
 
