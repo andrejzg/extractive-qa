@@ -12,10 +12,9 @@ unzip corenlp.zip %% cd stanford-corenlp-full-2018-02-27
 pip install -U https://github.com/stanfordnlp/python-stanford-corenlp/archive/master.zip
 export CORENLP_HOME=`pwd`
 cd ..
-pip install -r requirements.txt
 # we need python-dev tools for spacy
 sudo apt-get install build-essential python3.6-dev
+pip install -r requirements.txt
 # download resources for spacy and nltk
 python -m spacy download en
 python -c "import nltk; nltk.download('punkt')"
-
