@@ -155,3 +155,88 @@ class SquadDataset():
             max_answer_len=max_answer_len,
             max_question_len=max_question_len
         )
+
+
+class ConllDataset():
+
+    def __init__(self, dataset_type):
+        if dataset_type == 'train':
+            self.data_path = 'data/conll/eng.train'
+        elif dataset_type == 'development':
+            self.data_path = 'data/conll/eng.testa'
+        else:
+            raise RuntimeError(f'{dataset_type} is not a valid type')
+
+        logging.info(f'loading squad {dataset_type}...')
+
+        def parse_conll(filepath):
+            """ Parses a CoNLL-style file and turns it into nested list of (word,tag) tuples:
+            [
+            [(word, tag), (word, tag), (word, tag), (word,tag)],
+            [(word, tag), (word, tag), (word, tag)]
+            ]
+            """
+            data = open(filepath).read().split('\n\n')[1:]
+            data = [[(x.split()[0], x.split()[-1].split('-')[-1]) for x in line.split('\n') if len(x) >= 2] for line in data if line]
+
+            return data
+
+        self.parsed_data = parse_conll(self.data_path)
+        self.dataset_type = dataset_type
+
+    def raw_words(self):
+        return ''
+
+    def build(
+        self,
+        max_context_len,
+        max_answer_len,
+        max_question_len,
+        word2id,
+        dataset_type=None
+    ):
+        data, questions = self.data_questions_tuple(self.parsed_data)
+        return data_ops.make_conll_examples(
+            data,
+            questions,
+            word2id,
+            name=None,
+            max_context_len=max_context_len,
+            max_answer_len=max_answer_len,
+            max_question_len=max_question_len
+        )
+
+    def data_questions_tuple(self, original_data):
+        np.random.seed(12345)
+        possible_labels = ['PER', 'ORG', 'LOC']
+        templates_dict = {
+            1: ['Where are all the {}?', 'Mark all the {}', 'Highlight {}'],
+            2: ['Where are all the {} and {}?', 'Mark any {} or {}', 'Highlight {} and {}'],
+
+        }
+        question_map = {}
+        for label in possible_labels:
+            question_map[label] = []
+            other_labels = [l for l in possible_labels if l != label]
+            for n, templates in templates_dict.items():
+                fill_labels = [label] + [np.random.choice(other_labels) for _ in range(n - 1)]
+                np.random.shuffle(fill_labels)
+                question_map[label].extend([t.format(*fill_labels) for t in templates])
+
+        questions = defaultdict(dict)
+        data = []
+        for r in range(100):
+            for i, line in enumerate(original_data):
+                labels = set([x[1] for x in line if x[1] in possible_labels])
+                data.append(line)
+                # tmp
+                print(i + r * len(original_data))
+                if len(labels) == 0:
+                    questions[i + r * len(original_data)] = {}
+                for label in labels:
+                    questions[i + r * len(original_data)][label] = np.random.choice(question_map[label])
+            # tmp condition
+            if r == 2:
+                break
+
+        return data, questions

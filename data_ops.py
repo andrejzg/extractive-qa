@@ -207,13 +207,15 @@ def len_or_maxlen(seq, maxlen):
     return len(seq) if len(seq) <= maxlen else maxlen
 
 
-def make_conll_examples(data,
-                        word2id,
-                        label2question,
-                        name=None,
-                        max_context_len=300,
-                        max_answer_len=10,
-                        max_question_len=20):
+def make_conll_examples(
+    data,
+    questions,
+    word2id,
+    name=None,
+    max_context_len=300,
+    max_answer_len=10,
+    max_question_len=20
+):
     """
     Given a CoNLL dataset, builds a list of example dicts (see implementation).
     """
@@ -225,18 +227,15 @@ def make_conll_examples(data,
 
     examples = []
 
-    for line in tqdm(data, desc=name):
+    for i, line in tqdm(enumerate(data), desc=name):
         context_tokens = [x[0] for x in line]
         labels = [x[1] for x in line]
 
-        for label in label2question.keys():
-            if label in labels:
-
+        for label, question in questions[i].items():
                 if max_context_len and len(context_tokens) > max_context_len:
                     # context_tokens = context_tokens[:max_context_len]
                     continue
-
-                question_tokens = label2question[label].split()
+                question_tokens = question.split()
                 indicators = [1 if x == label else 0 for x in labels]
 
                 span_starts = []
@@ -252,7 +251,7 @@ def make_conll_examples(data,
 
                 span_positions = [span2position[(s, e)] for s, e in zip(span_starts, span_ends)]
 
-                answer_tokens = [context_tokens[s:e+1] for s, e in zip(span_starts, span_ends)]
+                answer_tokens = [token for s, e in zip(span_starts, span_ends) for token in context_tokens[s:e+1]]
 
                 example = {
                     'title': '',
@@ -273,6 +272,8 @@ def make_conll_examples(data,
 
                 examples.append(example)
 
+    import code
+    code.interact(local=locals())
     return examples
 
 
@@ -413,16 +414,3 @@ def pad_seq(seq, maxlen, reverse=False):
         else:
             res.extend([0] * (maxlen - len(seq)))
     return res
-
-
-def parse_conll(filepath):
-    """ Parses a CoNLL-style file and turns it into nested list of (word,tag) tuples:
-     [
-     [(word, tag), (word, tag), (word, tag), (word,tag)],
-     [(word, tag), (word, tag), (word, tag)]
-     ]
-     """
-    data = open(filepath).read().split('\n\n')[1:]
-    data = [[(x.split()[0], x.split()[-1].split('-')[-1]) for x in line.split('\n') if len(x) >= 2] for line in data if line]
-
-    return data
