@@ -5,8 +5,10 @@ import models
 import datasets
 
 dataset_seed = 1337
-train_datasets = {'squad': datasets.SquadDataset('train')}
-dev_datasets = {'squad': datasets.SquadDataset('development')}
+# train_datasets = {'squad': datasets.SquadDataset('train')}
+# dev_datasets = {'squad': datasets.SquadDataset('development')}
+train_datasets = {'conll': datasets.ConllDataset('train')}
+dev_datasets = {'conll': datasets.ConllDataset('development')}
 
 config = {
     'optimizer': tf.train.AdamOptimizer(learning_rate=1e-3),
