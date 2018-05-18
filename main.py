@@ -232,8 +232,8 @@ def run_experiment(
                 if dataset_name == 'combined':  # only want per-dataset examples
                     continue
 
-                context_dev = np.asarray([x['context'] for x in dev_data[dataset_name]])
-                question_dev = np.asarray([x['question'] for x in dev_data[dataset_name]])
+                context_dev = [x['context_raw'] for x in dev_data[dataset_name]]
+                question_dev = [x['question_raw'] for x in dev_data[dataset_name]]
                 to_pick_correct = experiment_logging.select_n_classified(
                     ground_truth=dev_labels,
                     predicted=predicted_labels,
@@ -248,29 +248,37 @@ def run_experiment(
                     n=2
                 )
 
-                if to_pick_correct is not None:
-                    print('CORRECT EXAMPLES ==========================================')
+                # TODO: repeated code, move to methods? + the following code cannot handle cases where some spans are
+                # correct and others aren't (it will just show them as being all wrong).
+
+                correct_spans = [
+                    [position2span[i] for i, x in enumerate(predicted_labels[p]) if x == 1]
+                    for p in to_pick_correct
+                ]
+                correct_contexts = [context_dev[p] for p in to_pick_correct]
+                correct_questions = [question_dev[p] for p in to_pick_correct]
+
+                for s, c, q in zip(correct_spans, correct_contexts, correct_questions):
+                    prompt = ' '.join(q)
+                    experiment_logging.print_spans(c, s, prompt)
+
+                wrong_spans = [
+                    [position2span[i] for i, x in enumerate(dev_labels[p]) if x == 1]
+                    for p in to_pick_wrong
+                ]
+                wrong_contexts = [context_dev[p] for p in to_pick_wrong]
+                wrong_questions = [question_dev[p] for p in to_pick_wrong]
+
+                for s, c, q in zip(wrong_spans, wrong_contexts, wrong_questions):
+                    prompt = ' '.join(q)
                     experiment_logging.print_spans(
-                        to_pick=to_pick_correct,
-                        predicted_labels=predicted_labels,
-                        context_ids=context_dev,
-                        question_ids=question_dev,
-                        position2span=position2span,
-                        span_color='\x1b[6;30;42m',
-                        id2word=id2word,
+                        tokens=c,
+                        spans=s,
+                        prompt=prompt,
+                        span_color='\x1b[6;30;41m',
+                        prompt_color='\33[1m\33[31m'
                     )
-                if to_pick_wrong is not None:
-                    print('INCORRECT EXAMPLES ==========================================')
-                    experiment_logging.print_spans(
-                        to_pick=to_pick_wrong,
-                        predicted_labels=predicted_labels,
-                        context_ids=context_dev,
-                        question_ids=question_dev,
-                        position2span=position2span,
-                        span_color='\x1b[0;37;41m',
-                        id2word=id2word,
-                    )
-                print('==========================================')
+
             logging.info(f'evaluation took {time.time() - beginning_of_eval_time:.2f} seconds')
 
 
