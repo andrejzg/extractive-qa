@@ -3,7 +3,7 @@ import os
 import importlib.util
 from itertools import islice
 from subprocess import call
-from itertools import cycle
+import json
 from itertools import groupby
 from collections import defaultdict
 
@@ -11,7 +11,6 @@ import numpy as np
 import spacy
 import nltk
 from spacy.lang.en import English
-from nested_lookup import nested_lookup
 from nltk.parse.corenlp import CoreNLPParser
 from tqdm import tqdm
 
@@ -47,27 +46,6 @@ def index_by_starting_character(text, tokens):
     return token_map
 
 
-# def make_vocab_from_nested_lookups(data, search_keys, additional_words=None, default=1, start=2):
-#     """
-#     Used to build (word2id) vocabulary dictionaries from the string values of nested keys. For example, given a large
-#     JSON you can use this function to build a word2id dictionary from a set of search keys. This is the case in
-#     SQuAD where 'context' and 'question' keys are nested deep in the SQuAD train and dev JSON files.
-#     """
-#     all_text = [text for key in search_keys for text in nested_lookup(key, data)]
-#     all_text = ' '.join(all_text + additional_words)
-#
-#     words = set()
-#
-#     for word in tokenize(all_text, 'nltk'):
-#         words.add(word)
-#
-#     word2id = defaultdict(lambda: default)  # by default we use 0 for pad, 1 for unk (unknown words)
-#     for i, word in enumerate(words, start=start):
-#         word2id[word] = i
-#
-#     return word2id
-
-
 def tokenize(text, tokenizer):
     """
     Tokenize text into a list of tokens using one of the following tokenizers:
@@ -76,7 +54,7 @@ def tokenize(text, tokenizer):
         - stanford
     """
     if tokenizer == 'nltk':
-        tokens = nltk.word_tokenize(text)
+        tokens = ['"' if token in {'``', '\'\''} else token for token in nltk.word_tokenize(text)]
     elif tokenizer == 'spacy':
         tokens = [word.text for word in spacy_tokenizer(text)]
     elif tokenizer == 'stanford':
@@ -115,7 +93,7 @@ def make_squad_examples(data,
     """
     examples = []
     total = 0
-    skipped = 0
+    skipped = defaultdict(lambda: 0)
     span2position = make_span2position(
         seq_size=max_context_len,
         max_len=max_answer_len
@@ -131,7 +109,7 @@ def make_squad_examples(data,
             context_tokens = tokenize(context, tokenizer=tokenizer)
 
             if max_context_len and len(context_tokens) > max_context_len:
-                skipped += len(paragraph['qas'])
+                skipped['context too long'] += len(paragraph['qas'])
                 continue
 
             answer_map = index_by_starting_character(context, context_tokens)
@@ -148,7 +126,7 @@ def make_squad_examples(data,
                 answer_tokens = tokenize(answer, tokenizer=tokenizer)
 
                 if max_answer_len and len(answer_tokens) > max_answer_len:
-                    skipped += 1
+                    skipped['answer too long'] += 1
                     continue
 
                 answer_start = qa['answers'][0]['answer_start']
@@ -192,13 +170,17 @@ def make_squad_examples(data,
                     examples.append(example)
 
                 except (AssertionError, KeyError) as e:
-                    skipped += 1
+                    skipped['error finding span'] += 1
                     continue
-    ratio_skipped = skipped/total if total != 0 else 0
+
+                examples.append(example)
+
+    total_skipped = sum(skipped.values())
+    ratio_skipped = total_skipped/total if total != 0 else 0
     logging.info(f'max_context_len: {max_context_len}')
     logging.info(f'max_answer_len: {max_answer_len}')
     logging.info(f'skipped {skipped}/{total}\t({ratio_skipped})')
-    print(skipped)
+    print(json.dumps(skipped, indent=4))
     print(ratio_skipped)
     return examples
 

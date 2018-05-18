@@ -13,16 +13,14 @@ dev_datasets = {'conll': datasets.ConllDataset('development')}
 config = {
     'optimizer': tf.train.AdamOptimizer(learning_rate=1e-3),
     'embeddings_size': 100,
-    'max_context_len': 250,
-    'max_answer_len': 5,
+    'max_context_len': 300,
+    'max_answer_len': 10,
     'max_question_len': 20,
-    'large_eval_every_steps': 200,
-    'small_eval_every_steps': 20,
+    'eval_every_steps': 100,
     'train_batch_size': 50,
-    'dev_batch_size': 1000,
-    'small_dev_batch_size': 50,
+    'dev_batch_size': 2000,
     'model_fn': models.rasor_net,
-    'dropout': 0.5,
+    'dropout': 0.8,
     'random': np.random.RandomState(1337)
 }
 

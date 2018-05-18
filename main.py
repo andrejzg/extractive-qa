@@ -1,3 +1,4 @@
+import time
 import logging
 import sys
 import shutil
@@ -6,6 +7,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_sc
 import tensorflow as tf
 from tensorflow.python.training.summary_io import SummaryWriterCache
 import numpy as np
+from tqdm import tqdm
 
 import data_ops
 import experiment_logging
@@ -18,17 +20,19 @@ def run_experiment(
     optimizer,
     train_batch_size,
     dev_batch_size,
-    small_dev_batch_size,
     max_context_len,
     max_answer_len,
     max_question_len,
-    small_eval_every_steps,
-    large_eval_every_steps,
+    eval_every_steps,
     dropout,
     logdir,
     **unused
 ):
-
+    basic_metrics = {
+        'f1_score': f1_score,
+        'precision_score': precision_score,
+        'recall_score': recall_score,
+    }
     train_data, dev_data, misc = dataset_fn()
     assert len(train_data) > 0 and len(dev_data) > 0
     word2id = misc['word2id']
@@ -59,7 +63,7 @@ def run_experiment(
     id2word = {v: k for k, v in word2id.items()}
 
     # Model outputs
-    logits, spans = model_fn(
+    logits_t, spans = model_fn(
         context_t,
         context_t_length,
         question_t,
@@ -69,29 +73,30 @@ def run_experiment(
     )
 
     # Build a mask which masks out-of-bound spans
-    span_mask = tf.cast(tf.reduce_any(tf.not_equal(spans, 0), axis=-1), tf.float32)
-    prediction_probs = tf.sigmoid(logits) * span_mask
+    span_mask_t = tf.cast(tf.reduce_any(tf.not_equal(spans, 0), axis=-1), tf.float32)
+    prediction_probs_t = tf.sigmoid(logits_t) * span_mask_t
 
     # Loss
-    divergence = tf.nn.weighted_cross_entropy_with_logits(
+    divergence_t = tf.nn.weighted_cross_entropy_with_logits(
         targets=label_t,
-        logits=logits,
-        pos_weight=50,
+        logits=logits_t,
+        pos_weight=100,
         name='multilabel_weighted_loss'
     )
 
-    loss_per_example = tf.reduce_mean(divergence * span_mask, axis=1)
-    loss = tf.reduce_mean(loss_per_example)
+    loss_per_example_t = tf.reduce_mean(divergence_t * span_mask_t, axis=1)
+    loss_t = tf.reduce_mean(loss_per_example_t)
+    tf.summary.scalar('mean_train_loss', loss_t)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
-    train_op = optimizer.minimize(loss, global_step=global_step_t)
+    train_op = optimizer.minimize(loss_t, global_step=global_step_t)
 
     # Session
     sess = tf.train.MonitoredTrainingSession(
         checkpoint_dir=logdir,
-        save_checkpoint_secs=300,
-        save_summaries_steps=small_eval_every_steps
+        save_checkpoint_secs=50,
+        save_summaries_steps=50
     )
 
     # Summaries
@@ -127,32 +132,55 @@ def run_experiment(
             'out_dropout:0': dropout,
         }
         current_step, train_loss, _ = sess.run(
-            [global_step_t, loss, train_op],
+            [global_step_t, loss_t, train_op],
             feed_dict=train_feed_dict
         )
 
-        basic_metrics = {
-            'f1_score': f1_score,
-            'precision_score': precision_score,
-            'recall_score': recall_score,
-        }
+        if eval_every_steps is not None and current_step % eval_every_steps == 0:
+            beginning_of_eval_time = time.time()
+            logging.info('<large eval>:dev')
 
-        if large_eval_every_steps is not None and current_step % large_eval_every_steps == 0:
-            metrics_logger.log_scalar('train/loss', train_loss.mean(), current_step)
-            logging.info('<small eval>:dev')
-
-            outputs_for_each_dataset = {
-                dataset_name: sess.run(
+            # batch eval each dataset
+            outputs_for_each_dataset = {}
+            for dataset_name, dataset_feed_dict in dev_feed_dicts.items():
+                logging.info(f'Computing dev outputs for {dataset_name}')
+                batched_feed_dicts = [
                     {
-                        'logits': logits,
-                        'spans': spans,
-                        'prediction_probs': prediction_probs,
-                        'label_t': label_t,
-                        'loss_per_example': loss_per_example
-                    },
-                    feed_dict=dataset_feed_dict
-                ) for dataset_name, dataset_feed_dict in dev_feed_dicts.items()
-            }
+                        placeholder: eval_data[i: i+dev_batch_size]
+                        for placeholder, eval_data in dataset_feed_dict.items()
+                    }
+                    for i in range(0, len(dev_data[dataset_name]), dev_batch_size)
+                ]
+                dataset_model_output = None
+                batched_model_outputs = [
+                    sess.run(
+                        {
+                            'prediction_probs_t': prediction_probs_t,
+                            'label_t': label_t,
+                            'loss_per_example_t': loss_per_example_t
+                        },
+                        feed_dict=batch_feed_dict
+                    ) for batch_feed_dict in tqdm(batched_feed_dicts)
+                ]
+
+                dataset_model_output = {
+                    tensor_name: np.concatenate([output[tensor_name] for output in batched_model_outputs])
+                    for tensor_name in batched_model_outputs[0].keys()
+                }
+
+                outputs_for_each_dataset[dataset_name] = dataset_model_output
+
+            # much nicer, non batched version of evaluating
+            # outputs_for_each_dataset = {
+            #     dataset_name: sess.run(
+            #         {
+            #             'prediction_probs_t': prediction_probs_t,
+            #             'label_t': label_t,
+            #             'loss_per_example_t': loss_per_example_t
+            #         },
+            #         feed_dict=dataset_feed_dict
+            #     ) for dataset_name, dataset_feed_dict in dev_feed_dicts.items()
+            # }
 
             # build a combined dataset
             output_names = outputs_for_each_dataset[list(outputs_for_each_dataset.keys())[0]].keys()  # HACK
@@ -166,12 +194,12 @@ def run_experiment(
 
             for dataset_name, dev_model_outputs in outputs_for_each_dataset.items():
                 metrics_logger.log_scalar(
-                    f'dev_large/loss/{dataset_name}',
-                    dev_model_outputs['loss_per_example'].mean(),
+                    f'loss/{dataset_name}',
+                    dev_model_outputs['loss_per_example_t'].mean(),
                     current_step
                 )
 
-                dev_probs = dev_model_outputs['prediction_probs']
+                dev_probs = dev_model_outputs['prediction_probs_t']
                 dev_labels = dev_model_outputs['label_t']
 
                 predicted_labels = (dev_probs > 0.5).astype(int)
@@ -185,7 +213,7 @@ def run_experiment(
 
                     for i, val in enumerate(score):
                         metrics_logger.log_scalar(
-                            f'dev_large/{metric_name}/{dataset_name}/label_{i}',
+                            f'{metric_name}/{dataset_name}/label_{i}',
                             val,
                             current_step
                         )
@@ -196,7 +224,7 @@ def run_experiment(
                 )
 
                 metrics_logger.log_scalar(
-                    f'dev_large/{dataset_name}/accuracy',
+                    f'accuracy/{dataset_name}',
                     acc,
                     current_step
                 )
@@ -204,8 +232,8 @@ def run_experiment(
                 if dataset_name == 'combined':  # only want per-dataset examples
                     continue
 
-                context_dev = np.asarray([x['context'] for x in dev_data[dataset_name]])
-                question_dev = np.asarray([x['context'] for x in dev_data[dataset_name]])
+                context_dev = [x['context_raw'] for x in dev_data[dataset_name]]
+                question_dev = [x['question_raw'] for x in dev_data[dataset_name]]
                 to_pick_correct = experiment_logging.select_n_classified(
                     ground_truth=dev_labels,
                     predicted=predicted_labels,
@@ -220,26 +248,38 @@ def run_experiment(
                     n=2
                 )
 
-                if to_pick_correct is not None:
+                # TODO: repeated code, move to methods? + the following code cannot handle cases where some spans are
+                # correct and others aren't (it will just show them as being all wrong).
+
+                correct_spans = [
+                    [position2span[i] for i, x in enumerate(predicted_labels[p]) if x == 1]
+                    for p in to_pick_correct
+                ]
+                correct_contexts = [context_dev[p] for p in to_pick_correct]
+                correct_questions = [question_dev[p] for p in to_pick_correct]
+
+                for s, c, q in zip(correct_spans, correct_contexts, correct_questions):
+                    prompt = ' '.join(q)
+                    experiment_logging.print_spans(c, s, prompt)
+
+                wrong_spans = [
+                    [position2span[i] for i, x in enumerate(predicted_labels[p]) if x == 1]
+                    for p in to_pick_wrong
+                ]
+                wrong_contexts = [context_dev[p] for p in to_pick_wrong]
+                wrong_questions = [question_dev[p] for p in to_pick_wrong]
+
+                for s, c, q in zip(wrong_spans, wrong_contexts, wrong_questions):
+                    prompt = ' '.join(q)
                     experiment_logging.print_spans(
-                        to_pick=to_pick_correct,
-                        predicted_labels=predicted_labels,
-                        context_ids=context_dev,
-                        question_ids=question_dev,
-                        position2span=position2span,
-                        span_color='\x1b[6;30;42m',
-                        id2word=id2word,
+                        tokens=c,
+                        spans=s,
+                        prompt=prompt,
+                        span_color='\x1b[6;30;41m',
+                        prompt_color='\33[1m\33[31m'
                     )
-                if to_pick_wrong is not None:
-                    experiment_logging.print_spans(
-                        to_pick=to_pick_wrong,
-                        predicted_labels=predicted_labels,
-                        context_ids=context_dev,
-                        question_ids=question_dev,
-                        position2span=position2span,
-                        span_color='\x1b[0;37;41m',
-                        id2word=id2word,
-                    )
+
+            logging.info(f'evaluation took {time.time() - beginning_of_eval_time:.2f} seconds')
 
 
 if __name__ == '__main__':

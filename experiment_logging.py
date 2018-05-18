@@ -63,33 +63,18 @@ class TensorboardLogger(object):
 
 
 def print_spans(
-        to_pick,
-        context_ids,
-        question_ids,
-        predicted_labels,
-        span_color,
-        position2span,
-        id2word,
-        ignore_ids=(0, 1)
-        ):
-    contexts = [' '.join([id2word[w] if w not in ignore_ids else '' for w in x]).strip() for x in context_ids[to_pick]]
-    questions = [' '.join([id2word[w] if w not in ignore_ids else '' for w in x]).strip() for x in question_ids[to_pick]]
-
-    span_positions = [np.where(x == 1)[0].tolist() for x in predicted_labels[to_pick]]
-
-    for context, question, span_position in zip(contexts, questions, span_positions):
-        to_print_context = []
-        span_starts = [position2span[p][0] for p in span_position]
-        span_ends = [position2span[p][1] for p in span_position]
-        for i, w in enumerate(context.split()):
-            if i in span_starts:
-                to_print_context.append(span_color)
-            to_print_context.append(w)
-            if i in span_ends:
-                to_print_context.append('\x1b[0m')
-        print(' '.join(to_print_context))
-        print(f'Q: {question}')
-        print('\n')
+    tokens,
+    spans,
+    prompt,
+    span_color='\x1b[6;30;42m',
+    prompt_color='\33[1m\33[32m'
+):
+    tokens_ = tokens[:]
+    for i, srange in enumerate(spans):
+        tokens_.insert(srange[0] + (2 * i), span_color)
+        tokens_.insert(srange[1] + 2 + (2 * i), '\x1b[0m')
+    print(f'{prompt_color}: {prompt} \033[0m')
+    print(' '.join(tokens_))
 
 
 def select_n_classified(
