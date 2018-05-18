@@ -253,9 +253,6 @@ def make_conll_examples(
                 }
 
                 examples.append(example)
-
-    import code
-    code.interact(local=locals())
     return examples
 
 

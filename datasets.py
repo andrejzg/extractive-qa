@@ -185,7 +185,7 @@ class ConllDataset():
         self.dataset_type = dataset_type
 
     def raw_words(self):
-        return ''
+        return ' '.join([x[0] for line in self.parsed_data for x in line])
 
     def build(
         self,
@@ -229,8 +229,6 @@ class ConllDataset():
             for i, line in enumerate(original_data):
                 labels = set([x[1] for x in line if x[1] in possible_labels])
                 data.append(line)
-                # tmp
-                print(i + r * len(original_data))
                 if len(labels) == 0:
                     questions[i + r * len(original_data)] = {}
                 for label in labels:
