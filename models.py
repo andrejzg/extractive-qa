@@ -33,7 +33,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     question_lstm_emb, _ = ops.bidirectional_lstm(
         inputs=question_emb,
         input_lengths=question_len,
-        size=50,
+        size=25,
         name='passage_independent_bLSTM'
     )
 
@@ -61,17 +61,17 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     context_query_aware_lstm, _ = ops.bidirectional_lstm(
         inputs=context_query_aware,
         input_lengths=context_len,
-        size=50,
+        size=25,
         name='context_query_aware_lstm'
     )
 
     spans = []
     for k, v in span2position.items():
         # span_length = k[1] - k[0] + 1
-        start = context_query_aware_lstm[:, k[0]]
-        end = context_query_aware_lstm[:, k[1]]
-        span_max = tf.reduce_max(context_query_aware_lstm[:, k[0]:k[1]+1], axis=1)
-        span = tf.concat([start, end, span_max], axis=-1, name='span_{}'.format(v))
+        start = tf.gather(context_query_aware_lstm, [k[0]], axis=1)
+        end = tf.gather(context_query_aware_lstm, [k[1]], axis=1)
+        # span_max = tf.reduce_max(context_query_aware_lstm[:, k[0]:k[1]+1], axis=1)
+        span = tf.squeeze(tf.concat([start, end], axis=-1, name='span_{}'.format(v)), axis=1)
         spans.append(span)
 
     spans = tf.stack(spans, axis=1, name='stacked_span_representations')

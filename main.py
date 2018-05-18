@@ -80,7 +80,7 @@ def run_experiment(
     divergence_t = tf.nn.weighted_cross_entropy_with_logits(
         targets=label_t,
         logits=logits_t,
-        pos_weight=50,
+        pos_weight=100,
         name='multilabel_weighted_loss'
     )
 
@@ -95,7 +95,7 @@ def run_experiment(
     # Session
     sess = tf.train.MonitoredTrainingSession(
         checkpoint_dir=logdir,
-        save_checkpoint_secs=600,
+        save_checkpoint_secs=50,
         save_summaries_steps=50
     )
 
@@ -263,7 +263,7 @@ def run_experiment(
                     experiment_logging.print_spans(c, s, prompt)
 
                 wrong_spans = [
-                    [position2span[i] for i, x in enumerate(dev_labels[p]) if x == 1]
+                    [position2span[i] for i, x in enumerate(predicted_labels[p]) if x == 1]
                     for p in to_pick_wrong
                 ]
                 wrong_contexts = [context_dev[p] for p in to_pick_wrong]
