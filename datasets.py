@@ -207,7 +207,7 @@ class ConllDataset():
         )
 
     def data_questions_tuple(self, original_data):
-        np.random.seed(12345)
+        random = np.random.RandomState(12345)
         possible_labels = ['PER', 'ORG', 'LOC']
         templates_dict = {
             1: ['Where are all the {}?', 'Mark all the {}', 'Highlight {}'],
@@ -219,8 +219,8 @@ class ConllDataset():
             question_map[label] = []
             other_labels = [l for l in possible_labels if l != label]
             for n, templates in templates_dict.items():
-                fill_labels = [label] + [np.random.choice(other_labels) for _ in range(n - 1)]
-                np.random.shuffle(fill_labels)
+                fill_labels = [label] + [random.choice(other_labels) for _ in range(n - 1)]
+                random.shuffle(fill_labels)
                 question_map[label].extend([t.format(*fill_labels) for t in templates])
 
         questions = defaultdict(dict)
@@ -232,7 +232,7 @@ class ConllDataset():
                 if len(labels) == 0:
                     questions[i + r * len(original_data)] = {}
                 for label in labels:
-                    questions[i + r * len(original_data)][label] = np.random.choice(question_map[label])
+                    questions[i + r * len(original_data)][label] = random.choice(question_map[label])
             # tmp condition
             if r == 2:
                 break
