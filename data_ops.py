@@ -98,6 +98,7 @@ def make_squad_examples(data,
         seq_size=max_context_len,
         max_len=max_answer_len
     )
+    position2span = {v: k for k, v in span2position.items()}
 
     for line in tqdm(data['data'], desc=name):
         title = line['title']
@@ -150,6 +151,10 @@ def make_squad_examples(data,
 
                     span_positions = [span2position[(span_start, span_end)]]
 
+                    s, e = position2span[span_positions[0]]
+                    assert ' '.join(context_tokens[s:e+1]) == ' '.join(answer_tokens), \
+                        'Extracted span does not match answer'
+
                     example = {
                         'title': title,
                         'context_raw': context_tokens,
@@ -166,7 +171,7 @@ def make_squad_examples(data,
                         'span_positions': span_positions,
                         'label': np.asarray([1 if x in span_positions else 0 for x in span2position.values()])
                     }
-
+                    
                     examples.append(example)
 
                 except (AssertionError, KeyError) as e:

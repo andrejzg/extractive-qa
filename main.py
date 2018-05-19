@@ -95,7 +95,7 @@ def run_experiment(
     # Session
     sess = tf.train.MonitoredTrainingSession(
         checkpoint_dir=logdir,
-        save_checkpoint_secs=50,
+        save_checkpoint_secs=60000,
         save_summaries_steps=50
     )
 

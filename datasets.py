@@ -121,6 +121,10 @@ class SquadDataset():
             self.data_path = 'data/train-v1.1.json'
         elif dataset_type == 'development':
             self.data_path = 'data/dev-v1.1.json'
+        elif dataset_type == 'debug_train':
+            self.data_path = 'data/train_50.json'
+        elif dataset_type == 'debug_dev':
+            self.data_path = 'data/dev_5.json'
         else:
             raise RuntimeError(f'{dataset_type} is not a valid type')
 

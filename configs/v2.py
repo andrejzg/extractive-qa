@@ -5,16 +5,18 @@ import models
 import datasets
 
 dataset_seed = 1337
-# train_datasets = {'squad': datasets.SquadDataset('train')}
-# dev_datasets = {'squad': datasets.SquadDataset('development')}
-train_datasets = {'conll': datasets.ConllDataset('train')}
-dev_datasets = {'conll': datasets.ConllDataset('development')}
+train_datasets = {'squad': datasets.SquadDataset('train')}
+dev_datasets = {'squad': datasets.SquadDataset('development')}
+# train_datasets = {'squad': datasets.SquadDataset('debug_train')}
+# dev_datasets = {'squad': datasets.SquadDataset('debug_dev')}
+# train_datasets = {'conll': datasets.ConllDataset('train')}
+# dev_datasets = {'conll': datasets.ConllDataset('development')}
 
 config = {
     'optimizer': tf.train.AdamOptimizer(learning_rate=1e-3),
     'embeddings_size': 100,
     'max_context_len': 300,
-    'max_answer_len': 10,
+    'max_answer_len': 1,
     'max_question_len': 20,
     'eval_every_steps': 100,
     'train_batch_size': 50,

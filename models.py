@@ -65,14 +65,17 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
         name='context_query_aware_lstm'
     )
 
-    spans = []
-    for k, v in span2position.items():
+    spans = [None] * (max(span2position.values()) + 1)  # NOQA GET THE BLOODY THING WORKING
+    for (start, end), position in span2position.items():
         # span_length = k[1] - k[0] + 1
-        start = tf.gather(context_query_aware_lstm, [k[0]], axis=1)
-        end = tf.gather(context_query_aware_lstm, [k[1]], axis=1)
+        start = tf.gather(context_query_aware_lstm, [start], axis=1)
+        end = tf.gather(context_query_aware_lstm, [end], axis=1)
         # span_max = tf.reduce_max(context_query_aware_lstm[:, k[0]:k[1]+1], axis=1)
-        span = tf.squeeze(tf.concat([start, end], axis=-1, name='span_{}'.format(v)), axis=1)
-        spans.append(span)
+        span = tf.squeeze(tf.concat([start, end], axis=-1, name='span_{}'.format(position)), axis=1)
+        # spans.append(span)
+        spans[position] = span
+
+    assert not any([s is None for s in spans])
 
     spans = tf.stack(spans, axis=1, name='stacked_span_representations')
 
