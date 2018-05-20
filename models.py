@@ -8,6 +8,9 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     context_emb = ops.embed_sequence(inputs=context, name='embedding_layer', embedding_matrix=embedding_matrix)
     question_emb = ops.embed_sequence(inputs=question, name='embedding_layer', embedding_matrix=embedding_matrix)
 
+    context_mask = tf.cast(tf.expand_dims(tf.sequence_mask(context_len, context.get_shape()[1].value), -1), tf.float32)
+    question_mask = tf.cast(tf.expand_dims(tf.sequence_mask(context_len, question.get_shape()[1].value), -1), tf.float32)
+
     context_dense = tf.layers.dense(
         inputs=context_emb,
         units=context_emb.get_shape()[-1].value,
@@ -22,9 +25,8 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
 
     s_passage_aligned = tf.matmul(context_dense, tf.transpose(question_dense, perm=[0, 2, 1]))
 
-    mask_pa = tf.cast(tf.not_equal(s_passage_aligned, 0.0), tf.float32)
     s_passage_aligned_exp = tf.exp(s_passage_aligned)
-    s_passage_aligned_masked = mask_pa * s_passage_aligned_exp
+    s_passage_aligned_masked = context_mask * s_passage_aligned_exp
     attn_passage_aligned = ops.normalize_linear(s_passage_aligned_masked)
 
     question_aligned = tf.matmul(attn_passage_aligned, question_dense)
@@ -43,9 +45,8 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
         activation=tf.nn.relu
     )
 
-    mask_pi = tf.cast(tf.not_equal(s_passage_independent, 0.0), tf.float32)
     s_passage_independent_exp = tf.exp(s_passage_independent)
-    s_passage_independent_masked = mask_pi * s_passage_independent_exp
+    s_passage_independent_masked = question_mask * s_passage_independent_exp
 
     attn_passage_independent = ops.normalize_linear(s_passage_independent_masked)
 
@@ -101,5 +102,6 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     )
 
     logits = tf.squeeze(logits, axis=-1) * span_mask
-
+    import code
+    code.interact(local=locals())
     return logits, spans

@@ -36,3 +36,64 @@ class BasicOpsTest(tf.test.TestCase):
 
             np.testing.assert_almost_equal(n, np.array([[1, 1, 1, 1, 0], [1, 1, 1, 0, 0], [1, 1, 1, 0, 0]]))
 
+    def test_pad_mask(self):
+        with self.test_session():
+            M = [[[1, 1, 1, 1, 0],
+                  [5, 5, 0, 0, 0],
+                  [5, 0, 0, 0, 0],
+                  [2, 2, 2, 2, 2],
+                  [0, 0, 0, 0, 0]],
+                 [[1, 1, 1, 1, 0],
+                  [5, 5, 0, 0, 0],
+                  [5, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0]],
+                 [[1, 1, 1, 1, 0],
+                  [5, 5, 0, 0, 0],
+                  [5, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0]]
+                 ]  # nan edge case (will lead to division by 0)
+
+            M = np.array(M)
+            K = tf.constant(M, tf.float32)
+
+            mask_pi = tf.cast(tf.not_equal(K, 0.0), tf.float32)
+
+            res = mask_pi * K
+            np.testing.assert_almost_equal(res.eval(), M)
+
+    def test_new_pad_mask_creation(self):
+        with self.test_session():
+            M = [[[1, 1, 1, 1, 0],
+                  [5, 5, 0, 0, 0],
+                  [5, 0, 0, 0, 0],
+                  [2, 2, 2, 2, 2],
+                  [0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0]],
+                 [[1, 1, 1, 1, 0],
+                  [5, 5, 0, 0, 0],
+                  [5, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0]],
+                 [[1, 1, 1, 1, 0],
+                  [5, 5, 0, 0, 0],
+                  [5, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0],
+                  [0, 0, 0, 0, 0]]
+                 ]
+
+            M = np.array(M)
+            K = tf.constant(M, tf.float32)
+
+            s_lens = [4, 3, 3]
+            s_lens = np.array(s_lens)
+            s_lens = tf.constant(s_lens, tf.int32)
+
+            mask = tf.cast(tf.expand_dims(tf.sequence_mask(s_lens, 6), -1), tf.float32)
+
+            res = mask * K
+            np.testing.assert_almost_equal(res.eval(), M)
+
