@@ -84,9 +84,9 @@ def run_experiment(
         name='multilabel_weighted_loss'
     )
 
-    loss_per_example_t = tf.reduce_sum(divergence_t * span_mask_t, axis=1)
-    loss_t = tf.reduce_sum(loss_per_example_t)  # is the mean valid with a mask? (differing # of examples)
-    tf.summary.scalar('sum_train_loss', loss_t)
+    loss_per_example_t = tf.reduce_mean(divergence_t * span_mask_t, axis=1)
+    loss_t = tf.reduce_mean(loss_per_example_t)  # is the mean valid with a mask? (differing # of examples)
+    tf.summary.scalar('mean_train_loss', loss_t)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
