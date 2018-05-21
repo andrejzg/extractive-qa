@@ -3,7 +3,7 @@ import tensorflow as tf
 import ops
 
 
-def rasor_net(context, context_len, question, question_len, span2position, embedding_matrix):
+def rasor_net(context, context_len, question, question_len, span2position, embedding_matrix, span_mask):
     # Passage-aligned question representations
     context_emb = ops.embed_sequence(inputs=context, name='embedding_layer', embedding_matrix=embedding_matrix)
     question_emb = ops.embed_sequence(inputs=question, name='embedding_layer', embedding_matrix=embedding_matrix)
@@ -41,7 +41,6 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
 
     s_passage_independent = tf.layers.dense(
         inputs=question_lstm_emb,    # span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
-
         units=1,
         activation=tf.nn.relu
     )
@@ -81,24 +80,23 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     spans = tf.stack(spans, axis=1, name='stacked_span_representations')
 
     # Build a mask which masks out-of-bound spans
-    span_mask = tf.cast(tf.reduce_any(tf.not_equal(spans, 0), axis=-1), tf.float32)
+    span_mask = tf.cast(tf.expand_dims(span_mask, -1), tf.float32)
 
     pre_logits = tf.layers.dense(
-        inputs=spans,
+        inputs=spans * span_mask,
         units=spans.get_shape()[-1].value,
         name='pre_final_ffn',
         activation=tf.nn.relu
     )
 
-    prob = tf.placeholder_with_default(1.0, shape=(), name='out_dropout')
-
-    logits_drouput = tf.nn.dropout(pre_logits, keep_prob=prob)
+    # prob = tf.placeholder_with_default(1.0, shape=(), name='out_dropout')
+    # logits_dropout = tf.nn.dropout(pre_logits, keep_prob=prob)
 
     logits = tf.layers.dense(
-        inputs=logits_drouput,
+        inputs=pre_logits*span_mask,
         units=1,
         name='final_ffn',
     )
 
-    logits = tf.squeeze(logits, axis=-1) * span_mask
-    return logits, spans
+    logits = tf.squeeze(logits * span_mask, axis=-1)
+    return logits

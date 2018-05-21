@@ -57,24 +57,28 @@ def run_experiment(
         max_len=max_answer_len
     )
 
+    span_mask_t = tf.placeholder(tf.int32, [None, len(span2position)], name='span_mask_t')
+
     label_t = tf.placeholder(tf.float32, [None, len(span2position)], name='label_t')
 
     position2span = {v: k for k, v in span2position.items()}
     id2word = {v: k for k, v in word2id.items()}
 
     # Model outputs
-    logits_t, spans = model_fn(
+    logits_t = model_fn(
         context_t,
         context_t_length,
         question_t,
         question_t_length,
         span2position,
-        embedding_matrix
+        embedding_matrix,
+        span_mask_t,
     )
 
     # Build a mask which masks out-of-bound spans
-    span_mask_t = tf.cast(tf.reduce_any(tf.not_equal(spans, 0), axis=-1), tf.float32)
-    prediction_probs_t = tf.sigmoid(logits_t) * span_mask_t
+    span_mask = tf.cast(span_mask_t, tf.float32)
+
+    prediction_probs_t = tf.sigmoid(logits_t) * span_mask
 
     # Loss
     divergence_t = tf.nn.weighted_cross_entropy_with_logits(
@@ -84,7 +88,16 @@ def run_experiment(
         name='multilabel_weighted_loss'
     )
 
-    loss_per_example_t = tf.reduce_mean(divergence_t * span_mask_t, axis=1)
+    # divergence_t = tf.nn.sigmoid_cross_entropy_with_logits(
+    #     labels=label_t,
+    #     logits=logits_t,
+    #     name='multilabel_loss'
+    # )
+
+    import code
+    code.interact(local=locals())
+
+    loss_per_example_t = tf.reduce_mean(divergence_t * span_mask, axis=1)
     loss_t = tf.reduce_mean(loss_per_example_t)  # is the mean valid with a mask? (differing # of examples)
     tf.summary.scalar('mean_train_loss', loss_t)
 
@@ -112,6 +125,7 @@ def run_experiment(
             question_t: np.asarray([x['question'] for x in dataset]),
             question_t_length: np.asarray([x['question_len'] for x in dataset]),
             label_t: np.asarray([x['label'] for x in dataset]),
+            span_mask_t: np.asarray([x['span_mask'] for x in dataset])
         } for dataset_name, dataset in dev_data.items()
     }
 
@@ -129,7 +143,8 @@ def run_experiment(
             question_t: np.asarray([x['question'] for x in train_batch]),
             question_t_length: np.asarray([x['question_len'] for x in train_batch]),
             label_t: np.asarray([x['label'] for x in train_batch]),
-            'out_dropout:0': dropout,
+            span_mask_t: np.asarray([x['span_mask'] for x in train_batch]),
+            # 'out_dropout:0': dropout,
         }
         current_step, train_loss, _ = sess.run(
             [global_step_t, loss_t, train_op],
@@ -251,33 +266,35 @@ def run_experiment(
                 # TODO: repeated code, move to methods? + the following code cannot handle cases where some spans are
                 # correct and others aren't (it will just show them as being all wrong).
 
-                correct_spans = [
-                    [position2span[i] for i, x in enumerate(predicted_labels[p]) if x == 1]
-                    for p in to_pick_correct
-                ]
-                correct_contexts = [context_dev[p] for p in to_pick_correct]
-                correct_questions = [question_dev[p] for p in to_pick_correct]
+                if to_pick_correct:
+                    correct_spans = [
+                        [position2span[i] for i, x in enumerate(predicted_labels[p]) if x == 1]
+                        for p in to_pick_correct
+                    ]
+                    correct_contexts = [context_dev[p] for p in to_pick_correct]
+                    correct_questions = [question_dev[p] for p in to_pick_correct]
 
-                for s, c, q in zip(correct_spans, correct_contexts, correct_questions):
-                    prompt = ' '.join(q)
-                    experiment_logging.print_spans(c, s, prompt)
+                    for s, c, q in zip(correct_spans, correct_contexts, correct_questions):
+                        prompt = ' '.join(q)
+                        experiment_logging.print_spans(c, s, prompt)
 
-                wrong_spans = [
-                    [position2span[i] for i, x in enumerate(predicted_labels[p]) if x == 1]
-                    for p in to_pick_wrong
-                ]
-                wrong_contexts = [context_dev[p] for p in to_pick_wrong]
-                wrong_questions = [question_dev[p] for p in to_pick_wrong]
+                if to_pick_wrong:
+                    wrong_spans = [
+                        [position2span[i] for i, x in enumerate(predicted_labels[p]) if x == 1]
+                        for p in to_pick_wrong
+                    ]
+                    wrong_contexts = [context_dev[p] for p in to_pick_wrong]
+                    wrong_questions = [question_dev[p] for p in to_pick_wrong]
 
-                for s, c, q in zip(wrong_spans, wrong_contexts, wrong_questions):
-                    prompt = ' '.join(q)
-                    experiment_logging.print_spans(
-                        tokens=c,
-                        spans=s,
-                        prompt=prompt,
-                        span_color='\x1b[6;30;41m',
-                        prompt_color='\33[1m\33[31m'
-                    )
+                    for s, c, q in zip(wrong_spans, wrong_contexts, wrong_questions):
+                        prompt = ' '.join(q)
+                        experiment_logging.print_spans(
+                            tokens=c,
+                            spans=s,
+                            prompt=prompt,
+                            span_color='\x1b[6;30;41m',
+                            prompt_color='\33[1m\33[31m'
+                        )
 
             logging.info(f'evaluation took {time.time() - beginning_of_eval_time:.2f} seconds')
 

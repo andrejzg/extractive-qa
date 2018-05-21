@@ -157,6 +157,10 @@ def make_squad_examples(data,
                     assert ' '.join(context_tokens[s:e+1]) == ' '.join(answer_tokens), \
                         'Extracted span does not match answer'
 
+                    correct_spans = np.asarray(list({k: v for k, v in span2position.items() if np.all(np.asarray(k) <= 5)}.values()))
+                    span_mask = np.zeros(len(span2position))
+                    span_mask[correct_spans] = 1
+
                     example = {
                         'title': title,
                         'context_raw': context_tokens,
@@ -171,6 +175,7 @@ def make_squad_examples(data,
                         'starts': [span_start],
                         'ends': [span_end],
                         'span_positions': span_positions,
+                        'span_mask': span_mask,
                         'label': np.asarray([1 if x in span_positions else 0 for x in span2position.values()])
                     }
 
