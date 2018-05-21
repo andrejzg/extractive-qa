@@ -48,7 +48,6 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
 
     s_passage_independent_exp = tf.exp(s_passage_independent)
     s_passage_independent_masked = question_mask * s_passage_independent_exp
-
     attn_passage_independent = ops.normalize_linear(s_passage_independent_masked)
 
     question_independent = attn_passage_independent * question_lstm_emb
