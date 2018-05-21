@@ -93,6 +93,7 @@ def make_squad_examples(data,
     """
     examples = []
     total = 0
+    total_passed = 0
     skipped = defaultdict(lambda: 0)
     span2position = make_span2position(
         seq_size=max_context_len,
@@ -111,6 +112,7 @@ def make_squad_examples(data,
 
             if max_context_len and len(context_tokens) > max_context_len:
                 skipped['context too long'] += len(paragraph['qas'])
+                total += len(paragraph['qas'])
                 continue
 
             answer_map = index_by_starting_character(context, context_tokens)
@@ -128,6 +130,7 @@ def make_squad_examples(data,
 
                 if max_answer_len and len(answer_tokens) > max_answer_len:
                     skipped['answer too long'] += 1
+                    total += 1
                     continue
 
                 answer_start = qa['answers'][0]['answer_start']
@@ -146,7 +149,6 @@ def make_squad_examples(data,
 
                     actual_clean = evaluate.normalize_answer(answer)
 
-                    total += 1
                     assert extracted_answer == actual_clean, f'{extracted_answer} != {actual_clean}'
 
                     span_positions = [span2position[(span_start, span_end)]]
@@ -171,11 +173,15 @@ def make_squad_examples(data,
                         'span_positions': span_positions,
                         'label': np.asarray([1 if x in span_positions else 0 for x in span2position.values()])
                     }
+
+                    total_passed += 1
+                    total += 1
                     
                     examples.append(example)
 
                 except (AssertionError, KeyError) as e:
                     skipped['error finding span'] += 1
+                    total += 1
                     continue
 
                 examples.append(example)
@@ -186,7 +192,8 @@ def make_squad_examples(data,
     logging.info(f'max_answer_len: {max_answer_len}')
     logging.info(f'skipped {skipped}/{total}\t({ratio_skipped})')
     print(json.dumps(skipped, indent=4))
-    print(ratio_skipped)
+    print(f'ratio skipped: {ratio_skipped}')
+    print(f'{total_passed} examples PASSED')
     return examples
 
 

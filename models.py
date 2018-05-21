@@ -40,7 +40,8 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     )
 
     s_passage_independent = tf.layers.dense(
-        inputs=question_lstm_emb,
+        inputs=question_lstm_emb,    # span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
+
         units=1,
         activation=tf.nn.relu
     )
@@ -81,7 +82,6 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     spans = tf.stack(spans, axis=1, name='stacked_span_representations')
 
     # Build a mask which masks out-of-bound spans
-    # span_mask = tf.cast(tf.not_equal(tf.reduce_min(spans, axis=-1), 0.0), tf.float32)
     span_mask = tf.cast(tf.reduce_any(tf.not_equal(spans, 0), axis=-1), tf.float32)
 
     pre_logits = tf.layers.dense(
@@ -102,6 +102,4 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     )
 
     logits = tf.squeeze(logits, axis=-1) * span_mask
-    import code
-    code.interact(local=locals())
     return logits, spans
