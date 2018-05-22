@@ -84,7 +84,7 @@ def run_experiment(
     divergence_t = tf.nn.weighted_cross_entropy_with_logits(
         targets=label_t,
         logits=logits_t,
-        pos_weight=100,
+        pos_weight=200,
         name='multilabel_weighted_loss'
     )
 
@@ -93,9 +93,6 @@ def run_experiment(
     #     logits=logits_t,
     #     name='multilabel_loss'
     # )
-
-    import code
-    code.interact(local=locals())
 
     loss_per_example_t = tf.reduce_mean(divergence_t * span_mask, axis=1)
     loss_t = tf.reduce_mean(loss_per_example_t)  # is the mean valid with a mask? (differing # of examples)

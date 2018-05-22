@@ -125,11 +125,11 @@ class BasicOpsTest(tf.test.TestCase):
 
             s2p = data_ops.make_span2position(seq_size=6, max_len=4)
 
-            mask_values = np.asarray(list({k: v for k, v in s2p.items() if np.all(np.asarray(k) <= 5)}.values()))
+            mask_values = np.asarray(list({k: v for k, v in s2p.items() if np.all(np.asarray(k) <= 4)}.values()))
             mask = np.zeros(len(s2p.items()))
             mask[mask_values] = 1
             mask = tf.constant(mask, tf.float32)
-
+            mask = tf.stack([mask] * 3)
             spans = [None] * (max(s2p.values()) + 1)
 
             for (start, end), position in s2p.items():
@@ -142,8 +142,8 @@ class BasicOpsTest(tf.test.TestCase):
                 spans[position] = span
 
             spans = tf.stack(spans, axis=1, name='stacked_span_representations')
+            masked_spans = spans * tf.expand_dims(mask, -1)
 
-            masked_spans = spans * mask
+            for i in list(np.where(mask.eval()[0] == 0)[0]):
+                assert sum(masked_spans[0][i].eval()) == 0.0
 
-            import code
-            code.interact(local=locals())
