@@ -343,7 +343,7 @@ def make_glove_embedding_matrix(word2id, word2vec, unk=0, pad=1, unk_state=np.ze
 
     IMPORTANT:
     - assumes word2id reserves values for pad and unknown words
-    - by default words in (1) but not in (2) are set to np.zeros (e.g. another option would be np.random.rand)
+    - by default words in (1) but not in (2) are set to unk_state (e.g. np.zeros or np.random.rand)
     - embeddings of words not found in word2id are THROWN AWAY in this function (a workaround it to make sure they're
       included in word2id)
     """

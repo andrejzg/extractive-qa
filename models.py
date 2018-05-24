@@ -35,7 +35,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     question_lstm_emb, _ = ops.bidirectional_lstm(
         inputs=question_emb,
         input_lengths=question_len,
-        size=25,
+        size=100,
         name='passage_independent_bLSTM'
     )
 
@@ -61,7 +61,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     context_query_aware_lstm, _ = ops.bidirectional_lstm(
         inputs=context_query_aware,
         input_lengths=context_len,
-        size=25,
+        size=100,
         name='context_query_aware_lstm'
     )
 
@@ -100,3 +100,4 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
 
     logits = tf.squeeze(logits * span_mask, axis=-1)
     return logits
+
