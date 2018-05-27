@@ -83,7 +83,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     span_mask = tf.cast(tf.expand_dims(span_mask, -1), tf.float32)
 
     pre_logits = tf.layers.dense(
-        inputs=spans * span_mask,
+        inputs=spans,
         units=spans.get_shape()[-1].value,
         name='pre_final_ffn',
         activation=tf.nn.relu
@@ -93,11 +93,12 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     # logits_dropout = tf.nn.dropout(pre_logits, keep_prob=prob)
 
     logits = tf.layers.dense(
-        inputs=pre_logits*span_mask,
+        inputs=pre_logits,
         units=1,
         name='final_ffn',
     )
 
     logits = tf.squeeze(logits * span_mask, axis=-1)
+
     return logits
 
