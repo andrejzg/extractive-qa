@@ -13,7 +13,7 @@ dev_datasets = {'squad': datasets.SquadDataset('development')}
 # dev_datasets = {'conll': datasets.ConllDataset('development')}
 
 config = {
-    'optimizer': tf.train.AdamOptimizer(learning_rate=1e-3),
+    'optimizer': tf.train.AdamOptimizer(learning_rate=5e-4),
     'embeddings_size': 100,
     'max_context_len': 300,
     'max_answer_len': 1,

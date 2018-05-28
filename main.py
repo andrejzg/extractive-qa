@@ -81,12 +81,23 @@ def run_experiment(
     prediction_probs_t = tf.sigmoid(logits_t) * span_mask
 
     # Loss
-    divergence_t = tf.nn.weighted_cross_entropy_with_logits(
-        targets=label_t,
+    # divergence_t = tf.nn.weighted_cross_entropy_with_logits(
+    #     targets=label_t,
+    #     logits=logits_t,
+    #     pos_weight=200,
+    #     name='multilabel_weighted_loss'
+    # )
+
+    # Softmax loss
+
+    divergence_t = tf.nn.softmax_cross_entropy_with_logits_v2(
+        labels=label_t,
         logits=logits_t,
-        pos_weight=200,
         name='multilabel_weighted_loss'
     )
+
+    loss_per_example_t = divergence_t * span_mask
+    loss_t = tf.reduce_mean(loss_per_example_t)
 
     # divergence_t = tf.nn.sigmoid_cross_entropy_with_logits(
     #     labels=label_t,
@@ -94,8 +105,11 @@ def run_experiment(
     #     name='multilabel_loss'
     # )
 
-    loss_per_example_t = tf.reduce_sum(divergence_t * span_mask, axis=-1) / tf.reduce_sum(span_mask, axis=-1)
-    loss_t = tf.reduce_sum(divergence_t * span_mask) / tf.reduce_sum(span_mask)
+    # import code
+    # code.interact(local=locals())
+    # #
+    # loss_per_example_t = tf.reduce_sum(divergence_t * span_mask, axis=-1) / tf.reduce_sum(span_mask, axis=-1)
+    # loss_t = tf.reduce_sum(divergence_t * span_mask) / tf.reduce_sum(span_mask)
 
     tf.summary.scalar('mean_train_loss', loss_t)
 
