@@ -94,8 +94,8 @@ def run_experiment(
     #     name='multilabel_loss'
     # )
 
-    loss_per_example_t = tf.reduce_sum(span_mask, axis=-1) / tf.reduce_sum(divergence_t * span_mask, axis=-1)
-    loss_t = tf.reduce_sum(span_mask) / tf.reduce_sum(divergence_t * span_mask)
+    loss_per_example_t = tf.reduce_sum(divergence_t * span_mask, axis=-1) / tf.reduce_sum(span_mask, axis=-1)
+    loss_t = tf.reduce_sum(divergence_t * span_mask) / tf.reduce_sum(span_mask)
 
     tf.summary.scalar('mean_train_loss', loss_t)
 
@@ -175,6 +175,9 @@ def run_experiment(
                         feed_dict=batch_feed_dict
                     ) for batch_feed_dict in tqdm(batched_feed_dicts)
                 ]
+
+                import code
+                code.interact(local=locals())
 
                 dataset_model_output = {
                     tensor_name: np.concatenate([output[tensor_name] for output in batched_model_outputs])
