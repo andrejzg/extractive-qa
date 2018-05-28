@@ -176,9 +176,6 @@ def run_experiment(
                     ) for batch_feed_dict in tqdm(batched_feed_dicts)
                 ]
 
-                import code
-                code.interact(local=locals())
-
                 dataset_model_output = {
                     tensor_name: np.concatenate([output[tensor_name] for output in batched_model_outputs])
                     for tensor_name in batched_model_outputs[0].keys()
