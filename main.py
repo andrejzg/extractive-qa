@@ -78,7 +78,7 @@ def run_experiment(
     # Build a mask which masks out-of-bound spans
     span_mask = tf.cast(span_mask_t, tf.float32)
 
-    prediction_probs_t = tf.sigmoid(logits_t) * span_mask
+    prediction_probs_t = tf.nn.softmax(logits_t) * span_mask
 
     # Loss
     # divergence_t = tf.nn.weighted_cross_entropy_with_logits(
@@ -96,7 +96,7 @@ def run_experiment(
         name='multilabel_weighted_loss'
     )
 
-    loss_per_example_t = divergence_t * span_mask
+    loss_per_example_t = divergence_t
     loss_t = tf.reduce_mean(loss_per_example_t)
 
     # divergence_t = tf.nn.sigmoid_cross_entropy_with_logits(
@@ -229,7 +229,8 @@ def run_experiment(
                 dev_probs = dev_model_outputs['prediction_probs_t']
                 dev_labels = dev_model_outputs['label_t']
 
-                predicted_labels = (dev_probs > 0.5).astype(int)
+                # predicted_labels = (dev_probs > 0.5).astype(int)
+                predicted_labels = dev_probs.max(axis=1, keepdims=1) == dev_probs
 
                 for metric_name, metric_fn in basic_metrics.items():
                     score = metric_fn(
@@ -323,7 +324,9 @@ if __name__ == '__main__':
     # Import the user-provided config.py as a module
     config = data_ops.import_module(config_path).config
 
+
     # Logdir naming convention
     logdir = f'model_logs/{run_name}'
 
     run_experiment(logdir=logdir, **config)
+
