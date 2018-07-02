@@ -147,3 +147,34 @@ class BasicOpsTest(tf.test.TestCase):
             for i in list(np.where(mask.eval()[0] == 0)[0]):
                 assert sum(masked_spans[0][i].eval()) == 0.0
 
+    def test_masked_softmax1(self):
+        with self.test_session():
+            M = [[5.0, 1.0, -3.0, 2.0],
+                 [1.0, 1.0, 2.0, 9.0],
+                 [0.5, -0.1, 100.0, 5.0],
+                 [-2.0, -90.0, -2.0, -1.0]]
+
+            idx = tf.cast(tf.reshape(tf.argmax(M, axis=1), [-1, 1]), tf.int32)
+            rows = tf.reshape(tf.range(idx.get_shape()[0]), [-1, 1])
+
+            capture = tf.concat([rows, idx], axis=1)
+
+            res = tf.gather_nd(M, capture)
+
+            np.testing.assert_almost_equal(res.eval(), [5.0, 9.0, 100.0, -1.0])
+
+    def test_masked_softmax2(self):
+        with self.test_session():
+            M = [[5.0, 1.0, -3.0, 2.0],
+                 [1.0, 1.0, 2.0, 9.0],
+                 [0.5, -0.1, 100.0, 5.0],
+                 [-2.0, -90.0, -2.0, -1.0]]
+
+            idx = tf.argmax(M, axis=1)
+            mask = tf.one_hot(idx, depth=idx.get_shape()[-1], dtype=tf.bool, on_value=True, off_value=False)
+            res = tf.boolean_mask(M, mask)
+
+            np.testing.assert_almost_equal(res.eval(), [5.0, 9.0, 100.0, -1.0])
+
+
+

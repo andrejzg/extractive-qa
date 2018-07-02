@@ -78,40 +78,30 @@ def run_experiment(
     # Build a mask which masks out-of-bound spans
     span_mask = tf.cast(span_mask_t, tf.float32)
 
-    prediction_probs_t = tf.nn.softmax(logits_t) * span_mask
+    # Mask the logits of spans which shouldn't be considered
+    logits_t *= span_mask
 
-    # Loss
-    # divergence_t = tf.nn.weighted_cross_entropy_with_logits(
-    #     targets=label_t,
-    #     logits=logits_t,
-    #     pos_weight=200,
-    #     name='multilabel_weighted_loss'
-    # )
+    # Find the indexes of the predicted spans
+    y_preds = tf.argmax(logits_t, axis=1)
 
-    # Softmax loss
+    # For numerical stability reasons subtract the max
+    logits_t -= tf.reduce_max(logits_t, axis=1, keepdims=True)
+    logits_t *= span_mask
 
-    divergence_t = tf.nn.softmax_cross_entropy_with_logits_v2(
-        labels=label_t,
-        logits=logits_t,
-        name='multilabel_weighted_loss'
-    )
+    # Negative log likelihood (i.e. multiclass cross-entropy) loss
+    exp_logits_t = tf.exp(logits_t)
+    exp_logits_t *= span_mask
+    sum_exp_logits_t = tf.reduce_sum(logits_t, axis=1)
+    log_sum_exp_logits_t = tf.log(sum_exp_logits_t)
+    gather_mask = tf.one_hot(y_preds, depth=logits_t.get_shape()[-1], dtype=tf.bool, on_value=True, off_value=False)
+    y_logits = tf.boolean_mask(logits_t, gather_mask)
+    xents = log_sum_exp_logits_t - y_logits
 
-    loss_per_example_t = divergence_t
+    loss_per_example_t = xents
     loss_t = tf.reduce_mean(loss_per_example_t)
-
-    # divergence_t = tf.nn.sigmoid_cross_entropy_with_logits(
-    #     labels=label_t,
-    #     logits=logits_t,
-    #     name='multilabel_loss'
-    # )
-
-    # import code
-    # code.interact(local=locals())
-    # #
-    # loss_per_example_t = tf.reduce_sum(divergence_t * span_mask, axis=-1) / tf.reduce_sum(span_mask, axis=-1)
-    # loss_t = tf.reduce_sum(divergence_t * span_mask) / tf.reduce_sum(span_mask)
-
     tf.summary.scalar('mean_train_loss', loss_t)
+
+    prediction_probs_t = exp_logits_t / sum_exp_logits_t
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
