@@ -101,7 +101,7 @@ def run_experiment(
     loss_t = tf.reduce_mean(loss_per_example_t)
     tf.summary.scalar('mean_train_loss', loss_t)
 
-    prediction_probs_t = exp_logits_t / tf.expand_dims(tf.resum_exp_logits_t, 1)
+    prediction_probs_t = exp_logits_t / tf.expand_dims(sum_exp_logits_t, 1)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
