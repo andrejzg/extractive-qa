@@ -101,7 +101,7 @@ def run_experiment(
     loss_t = tf.reduce_mean(loss_per_example_t)
     tf.summary.scalar('mean_train_loss', loss_t)
 
-    prediction_probs_t = exp_logits_t / sum_exp_logits_t
+    prediction_probs_t = exp_logits_t / tf.expand_dims(tf.resum_exp_logits_t, 1)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
@@ -220,7 +220,7 @@ def run_experiment(
                 dev_labels = dev_model_outputs['label_t']
 
                 # predicted_labels = (dev_probs > 0.5).astype(int)
-                predicted_labels = dev_probs.max(axis=1, keepdims=1) == dev_probs
+                predicted_labels = (dev_probs.max(axis=1, keepdims=1) == dev_probs).astype(int)
 
                 for metric_name, metric_fn in basic_metrics.items():
                     score = metric_fn(
