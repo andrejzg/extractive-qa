@@ -176,5 +176,24 @@ class BasicOpsTest(tf.test.TestCase):
 
             np.testing.assert_almost_equal(res.eval(), [5.0, 9.0, 100.0, -1.0])
 
+    def test_softmax_numerical_stability(self):
+        with self.test_session():
+            logits = [[5.0, 1.0, -3.0, 2.0],
+                      [1.0, 1.0, 2.0, 9.0],
+                      [0.5, -0.1, 100.0, 5.0],
+                      [1000, 2000, -8000, 2200]]
+
+            inbuilt = tf.nn.softmax(logits, axis=1)
+
+            unstable = tf.cast(tf.is_inf(tf.exp(np.asarray(logits))), tf.int32)
+            stable = tf.cast(tf.is_inf(tf.exp(np.asarray(logits) - tf.reduce_max(logits, axis=1, keepdims=True))), tf.int32)
+            import code
+            code.interact(local=locals())
+            np.testing.assert_almost_equal(tf.reduce_sum(stable).eval(), 0.0)
+            assert tf.reduce_sum(unstable).eval() > 0.0
+
+
+
+
 
 
