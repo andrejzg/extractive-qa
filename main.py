@@ -90,12 +90,23 @@ def run_experiment(
 
     # Negative log likelihood (i.e. multiclass cross-entropy) loss
     exp_logits_t = tf.exp(logits_t)
+
+    # exp_logits_t = tf.reduce_sum(tf.cast(tf.is_nan(exp_logits_t), tf.float32))
+    exp_logits_t = tf.Print(exp_logits_t, [exp_logits_t], message="exp_logits_t nan check:")
+
     exp_logits_t *= span_mask
-    sum_exp_logits_t = tf.reduce_sum(logits_t, axis=1)
+    sum_exp_logits_t = tf.reduce_sum(exp_logits_t, axis=1)
     log_sum_exp_logits_t = tf.log(sum_exp_logits_t)
+
+    # log_sum_exp_logits_t = tf.reduce_sum(tf.cast(tf.is_nan(log_sum_exp_logits_t), tf.float32))
+    log_sum_exp_logits_t = tf.Print(log_sum_exp_logits_t, [log_sum_exp_logits_t], message="log_sum_exp_logits_t nan check:")
+
     gather_mask = tf.one_hot(y_preds, depth=logits_t.get_shape()[-1], dtype=tf.bool, on_value=True, off_value=False)
     y_logits = tf.boolean_mask(logits_t, gather_mask)
     xents = log_sum_exp_logits_t - y_logits
+
+    # xents = tf.reduce_sum(tf.cast(tf.is_nan(xents), tf.float32))
+    xents = tf.Print(xents, [xents], message="xents nan check:")
 
     loss_per_example_t = xents
     loss_t = tf.reduce_mean(loss_per_example_t)
