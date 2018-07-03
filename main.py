@@ -93,7 +93,7 @@ def run_experiment(
 
     exp_logits_t *= span_mask
     sum_exp_logits_t = tf.reduce_sum(exp_logits_t, axis=1)
-    log_sum_exp_logits_t = tf.log(sum_exp_logits_t)
+    log_sum_exp_logits_t = tf.log(sum_exp_logits_t + 1e7)
 
     gather_mask = tf.one_hot(y_preds, depth=logits_t.get_shape()[-1], dtype=tf.bool, on_value=True, off_value=False)
     y_logits = tf.boolean_mask(logits_t, gather_mask)
