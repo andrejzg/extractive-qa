@@ -149,8 +149,8 @@ def run_experiment(
             span_mask_t: np.asarray([x['span_mask'] for x in train_batch]),
             # 'out_dropout:0': dropout,
         }
-        current_step, train_loss, _ = sess.run(
-            [global_step_t, loss_t, train_op],
+        current_step, train_loss, xents, logits_t, _ = sess.run(
+            [global_step_t, loss_t, xents, logits_t, train_op],
             feed_dict=train_feed_dict
         )
 
