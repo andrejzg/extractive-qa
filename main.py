@@ -85,25 +85,24 @@ def run_experiment(
     y_preds = tf.argmax(logits_t, axis=1)
 
     # For numerical stability reasons subtract the max
-    logits_t -= tf.reduce_max(logits_t, axis=1, keepdims=True)
+    logit_max = tf.reduce_max(logits_t, axis=1, keepdims=True)
+    logits_t -= logit_max
     logits_t *= span_mask
 
     # Negative log likelihood (i.e. multiclass cross-entropy) loss
-    exp_logits_t = tf.exp(logits_t)
-
-    exp_logits_t *= span_mask
-    sum_exp_logits_t = tf.reduce_sum(exp_logits_t, axis=1)
-    log_sum_exp_logits_t = tf.log(sum_exp_logits_t + 1e7)
+    exp_logits_t = tf.exp(logits_t) * span_mask
+    log_sum_exp_logits_t = tf.log(tf.reduce_sum(exp_logits_t, axis=1) + 1e7)
 
     gather_mask = tf.one_hot(y_preds, depth=logits_t.get_shape()[-1], dtype=tf.bool, on_value=True, off_value=False)
     y_logits = tf.boolean_mask(logits_t, gather_mask)
+
     xents = log_sum_exp_logits_t - y_logits
 
     loss_per_example_t = xents
     loss_t = tf.reduce_mean(loss_per_example_t)
     tf.summary.scalar('mean_train_loss', loss_t)
 
-    prediction_probs_t = exp_logits_t / tf.expand_dims(sum_exp_logits_t, 1)
+    prediction_probs_t = exp_logits_t / tf.expand_dims(tf.reduce_sum(exp_logits_t, axis=1), 1)
 
     # Optimizer
     global_step_t = tf.train.create_global_step()
