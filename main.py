@@ -8,6 +8,7 @@ import tensorflow as tf
 from tensorflow.python.training.summary_io import SummaryWriterCache
 import numpy as np
 from tqdm import tqdm
+from collections import Counter
 
 import data_ops
 import experiment_logging
@@ -266,6 +267,10 @@ def run_experiment(
                     correct=False,
                     n=2
                 )
+
+                prob_dist = np.argmax(dev_probs, axis=1)
+                print('DEV predicted span distribution')
+                print(Counter(prob_dist))
 
                 # TODO: repeated code, move to methods? + the following code cannot handle cases where some spans are
                 # correct and others aren't (it will just show them as being all wrong).
