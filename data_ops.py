@@ -161,7 +161,7 @@ def make_squad_examples(data,
                                                         k: v for
                                                         k, v in
                                                         span2position.items()
-                                                        if np.all(np.asarray(k) <= len(context_tokens))
+                                                        if np.all(np.asarray(k) < len(context_tokens))
                                                     }.values()))
                     span_mask = np.zeros(len(span2position))
                     span_mask[correct_spans] = 1
