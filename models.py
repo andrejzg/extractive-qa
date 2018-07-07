@@ -61,7 +61,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     context_query_aware_lstm, _ = ops.bidirectional_lstm(
         inputs=context_query_aware,
         input_lengths=context_len,
-        size=100,
+        size=context_query_aware.get_shape()[-1].value,
         name='context_query_aware_lstm'
     )
 
@@ -100,7 +100,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
         inputs=spans * span_mask,
         units=spans.get_shape()[-1].value,
         name='pre_final_ffn',
-        activation=tf.nn.relu
+        activation=tf.nn.relu,
     )
 
     # prob = tf.placeholder_with_default(1.0, shape=(), name='out_dropout')

@@ -84,6 +84,7 @@ def run_experiment(
 
     logit_min = tf.reduce_min(logits_t, axis=1, keepdims=True)
     logits_t -= logit_min
+    logits_t *= span_mask
 
     # Find the indexes of the predicted spans
     y_preds = tf.argmax(logits_t, axis=1)
@@ -277,10 +278,6 @@ def run_experiment(
                 prob_dist = np.argmax(dev_probs, axis=1)
                 print('DEV predicted span distribution')
                 print(Counter(prob_dist))
-
-
-                import code
-                code.interact(local=locals())
 
                 # TODO: repeated code, move to methods? + the following code cannot handle cases where some spans are
                 # correct and others aren't (it will just show them as being all wrong).
