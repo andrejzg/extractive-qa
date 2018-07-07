@@ -82,6 +82,9 @@ def run_experiment(
     # Mask the logits of spans which shouldn't be considered
     logits_t *= span_mask
 
+    logit_min = tf.reduce_min(logits_t, axis=1, keepdims=True)
+    logits_t -= logit_min
+
     # Find the indexes of the predicted spans
     y_preds = tf.argmax(logits_t, axis=1)
 
@@ -150,8 +153,8 @@ def run_experiment(
             span_mask_t: np.asarray([x['span_mask'] for x in train_batch]),
             # 'out_dropout:0': dropout,
         }
-        current_step, train_loss, _ = sess.run(
-            [global_step_t, loss_t, train_op],
+        current_step, train_loss, _xents, _logits_t, _exp_logits_t, _log_sum_exp_logits_t,  _ = sess.run(
+            [global_step_t, loss_t, xents, logits_t, exp_logits_t, log_sum_exp_logits_t, train_op],
             feed_dict=train_feed_dict
         )
 
@@ -254,6 +257,9 @@ def run_experiment(
 
                 context_dev = [x['context_raw'] for x in dev_data[dataset_name]]
                 question_dev = [x['question_raw'] for x in dev_data[dataset_name]]
+
+                np.all((dev_labels == predicted_labels), axis=1)
+
                 to_pick_correct = experiment_logging.select_n_classified(
                     ground_truth=dev_labels,
                     predicted=predicted_labels,
@@ -271,6 +277,10 @@ def run_experiment(
                 prob_dist = np.argmax(dev_probs, axis=1)
                 print('DEV predicted span distribution')
                 print(Counter(prob_dist))
+
+
+                import code
+                code.interact(local=locals())
 
                 # TODO: repeated code, move to methods? + the following code cannot handle cases where some spans are
                 # correct and others aren't (it will just show them as being all wrong).

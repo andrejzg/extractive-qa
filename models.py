@@ -65,11 +65,25 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
         name='context_query_aware_lstm'
     )
 
-    spans = [None] * (max(span2position.values()) + 1)  # NOQA GET THE BLOODY THING WORKING
+    starts_context_query_aware_lstm = tf.layers.dense(
+        inputs=context_query_aware_lstm,
+        units=context_query_aware_lstm.get_shape()[-1].value,
+        name='end_span_ff',
+        use_bias=False
+    )
+
+    ends_context_query_aware_lstm = tf.layers.dense(
+        inputs=context_query_aware_lstm,
+        units=context_query_aware_lstm.get_shape()[-1].value,
+        name='start_span_ff',
+        use_bias=False
+    )
+
+    spans = [None] * len(span2position)  # NOQA GET THE BLOODY THING WORKING
     for (start, end), position in span2position.items():
         # span_length = k[1] - k[0] + 1
-        start = tf.gather(context_query_aware_lstm, [start], axis=1)
-        end = tf.gather(context_query_aware_lstm, [end], axis=1)
+        start = tf.gather(starts_context_query_aware_lstm, [start], axis=1)
+        end = tf.gather(ends_context_query_aware_lstm, [end], axis=1)
         # span_max = tf.reduce_max(context_query_aware_lstm[:, k[0]:k[1]+1], axis=1)
         span = tf.squeeze(tf.concat([start, end], axis=-1, name='span_{}'.format(position)), axis=1)
         # spans.append(span)
@@ -83,7 +97,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     span_mask = tf.cast(tf.expand_dims(span_mask, -1), tf.float32)
 
     pre_logits = tf.layers.dense(
-        inputs=spans,
+        inputs=spans * span_mask,
         units=spans.get_shape()[-1].value,
         name='pre_final_ffn',
         activation=tf.nn.relu
@@ -96,9 +110,9 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
         inputs=pre_logits,
         units=1,
         name='final_ffn',
+        use_bias=False
     )
 
     logits = tf.squeeze(logits * span_mask, axis=-1)
 
     return logits
-
