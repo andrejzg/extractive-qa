@@ -11,10 +11,12 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     context_mask = tf.cast(tf.expand_dims(tf.sequence_mask(context_len, context.get_shape()[1].value), -1), tf.float32)
     question_mask = tf.cast(tf.expand_dims(tf.sequence_mask(context_len, question.get_shape()[1].value), -1), tf.float32)
 
+    # TODO: tie weights
     context_dense = tf.layers.dense(
         inputs=context_emb,
         units=context_emb.get_shape()[-1].value,
-        activation=tf.nn.relu
+        activation=tf.nn.relu,
+        name='ff_context_and_query'
     )
 
     question_dense = tf.layers.dense(
@@ -25,9 +27,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
 
     s_passage_aligned = tf.matmul(context_dense, tf.transpose(question_dense, perm=[0, 2, 1]))
 
-    s_passage_aligned_exp = tf.exp(s_passage_aligned)
-    s_passage_aligned_masked = context_mask * s_passage_aligned_exp
-    attn_passage_aligned = ops.normalize_linear(s_passage_aligned_masked)
+    attn_passage_aligned = ops.masked_softmax(s_passage_aligned, context_mask)
 
     question_aligned = tf.matmul(attn_passage_aligned, question_dense)
 
@@ -45,9 +45,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
         activation=tf.nn.relu
     )
 
-    s_passage_independent_exp = tf.exp(s_passage_independent)
-    s_passage_independent_masked = question_mask * s_passage_independent_exp
-    attn_passage_independent = ops.normalize_linear(s_passage_independent_masked)
+    attn_passage_independent = ops.masked_softmax(s_passage_independent, question_mask)
 
     question_independent = attn_passage_independent * question_lstm_emb
 
@@ -61,7 +59,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
     context_query_aware_lstm, _ = ops.bidirectional_lstm(
         inputs=context_query_aware,
         input_lengths=context_len,
-        size=context_query_aware.get_shape()[-1].value,
+        size=100,
         name='context_query_aware_lstm'
     )
 
@@ -115,4 +113,4 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
 
     logits = tf.squeeze(logits * span_mask, axis=-1)
 
-    return logits
+    return logits, context_query_aware_lstm, context_query_aware

@@ -88,3 +88,10 @@ def l1_normalize(unnormalized_values):
     with tf.name_scope('l1_normalize', values=[unnormalized_values]):
         normalized = unnormalized_values / tf.reduce_sum(unnormalized_values, axis=-1, keep_dims=True)
     return normalized
+
+
+def masked_softmax(seq, mask):
+    exp_seq = tf.exp(seq)
+    masked_exp_seq = mask * exp_seq
+    _masked_softmax = mask * normalize_linear(masked_exp_seq)
+    return _masked_softmax

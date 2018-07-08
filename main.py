@@ -66,7 +66,7 @@ def run_experiment(
     id2word = {v: k for k, v in word2id.items()}
 
     # Model outputs
-    logits_t = model_fn(
+    logits_t, *the_rest = model_fn(
         context_t,
         context_t_length,
         question_t,
@@ -96,15 +96,14 @@ def run_experiment(
 
     # Negative log likelihood (i.e. multiclass cross-entropy) loss
     exp_logits_t = tf.exp(logits_t) * span_mask
-    log_sum_exp_logits_t = tf.log(tf.reduce_sum(exp_logits_t, axis=1) + 1e7)
+    log_sum_exp_logits_t = tf.log(tf.reduce_sum(exp_logits_t, axis=1) + 1e-7)
 
     gather_mask = tf.one_hot(y_preds, depth=logits_t.get_shape()[-1], dtype=tf.bool, on_value=True, off_value=False)
     y_logits = tf.boolean_mask(logits_t, gather_mask)
 
     xents = log_sum_exp_logits_t - y_logits
 
-    loss_per_example_t = xents
-    loss_t = tf.reduce_mean(loss_per_example_t)
+    loss_t = tf.reduce_mean(xents)
     tf.summary.scalar('mean_train_loss', loss_t)
 
     prediction_probs_t = exp_logits_t / tf.expand_dims(tf.reduce_sum(exp_logits_t, axis=1), 1)
@@ -154,8 +153,8 @@ def run_experiment(
             span_mask_t: np.asarray([x['span_mask'] for x in train_batch]),
             # 'out_dropout:0': dropout,
         }
-        current_step, train_loss, _xents, _logits_t, _exp_logits_t, _log_sum_exp_logits_t,  _ = sess.run(
-            [global_step_t, loss_t, xents, logits_t, exp_logits_t, log_sum_exp_logits_t, train_op],
+        current_step, train_loss, _xents, _logits_t, _exp_logits_t, _log_sum_exp_logits_t,  *_the_rest = sess.run(
+            [global_step_t, loss_t, xents, logits_t, exp_logits_t, log_sum_exp_logits_t] + the_rest + [train_op],
             feed_dict=train_feed_dict
         )
 
@@ -180,7 +179,7 @@ def run_experiment(
                         {
                             'prediction_probs_t': prediction_probs_t,
                             'label_t': label_t,
-                            'loss_per_example_t': loss_per_example_t
+                            'loss_per_example_t': xents
                         },
                         feed_dict=batch_feed_dict
                     ) for batch_feed_dict in tqdm(batched_feed_dicts)
