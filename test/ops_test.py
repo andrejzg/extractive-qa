@@ -187,8 +187,6 @@ class BasicOpsTest(tf.test.TestCase):
 
             unstable = tf.cast(tf.is_inf(tf.exp(np.asarray(logits))), tf.int32)
             stable = tf.cast(tf.is_inf(tf.exp(np.asarray(logits) - tf.reduce_max(logits, axis=1, keepdims=True))), tf.int32)
-            import code
-            code.interact(local=locals())
             np.testing.assert_almost_equal(tf.reduce_sum(stable).eval(), 0.0)
             assert tf.reduce_sum(unstable).eval() > 0.0
 

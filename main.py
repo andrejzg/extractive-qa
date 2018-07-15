@@ -62,6 +62,8 @@ def run_experiment(
 
     label_t = tf.placeholder(tf.float32, [None, len(span2position)], name='label_t')
 
+    is_training = tf.placeholder(tf.bool, name='is_training_flag')
+
     position2span = {v: k for k, v in span2position.items()}
     id2word = {v: k for k, v in word2id.items()}
 
@@ -74,6 +76,7 @@ def run_experiment(
         span2position,
         embedding_matrix,
         span_mask_t,
+        is_training
     )
 
     # Build a mask which masks out-of-bound spans
@@ -104,7 +107,6 @@ def run_experiment(
     xents = log_sum_exp_logits_t - y_logits
 
     loss_t = tf.reduce_mean(xents)
-    tf.summary.scalar('mean_train_loss', loss_t)
 
     prediction_probs_t = exp_logits_t / tf.expand_dims(tf.reduce_sum(exp_logits_t, axis=1), 1)
 
@@ -132,7 +134,7 @@ def run_experiment(
             question_t: np.asarray([x['question'] for x in dataset]),
             question_t_length: np.asarray([x['question_len'] for x in dataset]),
             label_t: np.asarray([x['label'] for x in dataset]),
-            span_mask_t: np.asarray([x['span_mask'] for x in dataset])
+            span_mask_t: np.asarray([x['span_mask'] for x in dataset]),
         } for dataset_name, dataset in dev_data.items()
     }
 
@@ -151,6 +153,7 @@ def run_experiment(
             question_t_length: np.asarray([x['question_len'] for x in train_batch]),
             label_t: np.asarray([x['label'] for x in train_batch]),
             span_mask_t: np.asarray([x['span_mask'] for x in train_batch]),
+            is_training: False,
             # 'out_dropout:0': dropout,
         }
         current_step, train_loss, _xents, _logits_t, _exp_logits_t, _log_sum_exp_logits_t,  *_the_rest = sess.run(
@@ -173,6 +176,10 @@ def run_experiment(
                     }
                     for i in range(0, len(dev_data[dataset_name]), dev_batch_size)
                 ]
+
+                for d in batched_feed_dicts:
+                    d.update({is_training: False})
+
                 dataset_model_output = None
                 batched_model_outputs = [
                     sess.run(

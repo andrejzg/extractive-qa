@@ -10,7 +10,26 @@ def bidirectional_lstm(inputs, name, size, input_lengths=None):
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE, initializer=tf.contrib.layers.xavier_initializer()):
 
         cell_fw = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=1.0)
+        cell_fw = tf.contrib.rnn.DropoutWrapper(
+            cell=cell_fw,
+            input_keep_prob=0.6,
+            output_keep_prob=1.0,
+            state_keep_prob=0.8,
+            variational_recurrent=True,
+            input_size=inputs.get_shape()[-1].value,
+            dtype=tf.float32
+        )
+
         cell_bw = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=1.0)
+        cell_bw = tf.contrib.rnn.DropoutWrapper(
+            cell=cell_bw,
+            input_keep_prob=0.6,
+            output_keep_prob=1.0,
+            state_keep_prob=0.8,
+            variational_recurrent=True,
+            input_size=inputs.get_shape()[-1].value,
+            dtype=tf.float32
+        )
 
         outputs_tuple, final_states = tf.nn.bidirectional_dynamic_rnn(
             cell_fw=cell_fw,
@@ -95,3 +114,4 @@ def masked_softmax(seq, mask):
     masked_exp_seq = mask * exp_seq
     _masked_softmax = mask * normalize_linear(masked_exp_seq)
     return _masked_softmax
+
