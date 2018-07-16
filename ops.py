@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
-def bidirectional_lstm(inputs, name, size, input_lengths=None):
+def bidirectional_lstm(inputs, name, size, is_training=False, input_lengths=None):
     """
     Main bi-LSTM used for passing over word embeddings.
     """
@@ -10,11 +10,16 @@ def bidirectional_lstm(inputs, name, size, input_lengths=None):
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE, initializer=tf.contrib.layers.xavier_initializer()):
 
         cell_fw = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=1.0)
+
+        input_keep_prob = tf.cond(is_training, true_fn=lambda: tf.constant(0.6), false_fn=lambda: tf.constant(1.0))
+        output_keep_prob = tf.cond(is_training, true_fn=lambda: tf.constant(1.0), false_fn=lambda: tf.constant(1.0))
+        state_keep_prob = tf.cond(is_training, true_fn=lambda: tf.constant(0.8), false_fn=lambda: tf.constant(1.0))
+
         cell_fw = tf.contrib.rnn.DropoutWrapper(
             cell=cell_fw,
-            input_keep_prob=0.6,
-            output_keep_prob=1.0,
-            state_keep_prob=0.8,
+            input_keep_prob=input_keep_prob,
+            output_keep_prob=output_keep_prob,
+            state_keep_prob=state_keep_prob,
             variational_recurrent=True,
             input_size=inputs.get_shape()[-1].value,
             dtype=tf.float32
@@ -23,9 +28,9 @@ def bidirectional_lstm(inputs, name, size, input_lengths=None):
         cell_bw = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=1.0)
         cell_bw = tf.contrib.rnn.DropoutWrapper(
             cell=cell_bw,
-            input_keep_prob=0.6,
-            output_keep_prob=1.0,
-            state_keep_prob=0.8,
+            input_keep_prob=input_keep_prob,
+            output_keep_prob=output_keep_prob,
+            state_keep_prob=state_keep_prob,
             variational_recurrent=True,
             input_size=inputs.get_shape()[-1].value,
             dtype=tf.float32

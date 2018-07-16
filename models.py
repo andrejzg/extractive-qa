@@ -45,6 +45,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
         inputs=question_emb,
         input_lengths=question_len,
         size=100,
+        is_training=is_training,
         name='passage_independent_bLSTM'
     )
 
@@ -75,6 +76,7 @@ def rasor_net(context, context_len, question, question_len, span2position, embed
         inputs=context_query_aware,
         input_lengths=context_len,
         size=100,
+        is_training=is_training,
         name='context_query_aware_lstm'
     )
 
