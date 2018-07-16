@@ -1,10 +1,10 @@
-mkdir data
+mkdir -p data/cache
 curl https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v1.1.json -o data/train-v1.1.json
 curl https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v1.1.json -o data/dev-v1.1.json
 curl https://worksheets.codalab.org/rest/bundles/0xc83bf36cf8714819ba11802b59cb809e/contents/blob/ -o data/squad-dev-evaluate-in1
 curl https://worksheets.codalab.org/rest/bundles/0xbcd57bee090b421c982906709c8c27e1/contents/blob/ -o evaluate-v1.1.py
 mv evaluate-v1.1 evaluate.py
-virtualenv -p /usr/bin/python3.6 venv
+virtualenv -p /usr/local/bin/python3 venv
 source venv/bin/activate
 curl -LO http://nlp.stanford.edu/software/stanford-corenlp-full-2018-02-27.zip -o data/corenlp.zip
 cd data

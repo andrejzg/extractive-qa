@@ -282,8 +282,13 @@ def run_experiment(
                 )
 
                 prob_dist = np.argmax(dev_probs, axis=1)
+
+                span_counts = Counter(prob_dist)
+                sorted_span_counts = sorted(span_counts.items())
+                span_pos_counts = dict([(position2span[x[0]], x[1]) for x in sorted_span_counts])
+
                 print('DEV predicted span distribution')
-                print(Counter(prob_dist))
+                print(span_pos_counts)
 
                 # TODO: repeated code, move to methods? + the following code cannot handle cases where some spans are
                 # correct and others aren't (it will just show them as being all wrong).

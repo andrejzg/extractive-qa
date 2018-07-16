@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
-def bidirectional_lstm(inputs, name, size, is_training=False, input_lengths=None):
+def bidirectional_lstm(inputs, name, size, is_training=True, input_lengths=None):
     """
     Main bi-LSTM used for passing over word embeddings.
     """
